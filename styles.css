@@ -1,0 +1,666 @@
+/* ============================================================
+   Golf Tracker — Scorecard design system
+   ============================================================ */
+
+:root {
+  --green-deep: #2D4A3E;
+  --green-darker: #1F352C;
+  --paper: #F2EFE4;
+  --paper-line: #E3DDC9;
+  --brass: #B8935F;
+  --brass-dark: #9A7A4A;
+  --ink: #1A1E1B;
+  --ink-soft: #5B5F58;
+  --bogey-red: #A8453A;
+  --birdie-green: #3E7A5C;
+
+  --radius: 10px;
+  --shadow: 0 2px 8px rgba(26,30,27,0.10);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Iowan Old Style', 'Georgia', 'Charter', serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+body {
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  min-height: 100vh;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ---------- Top bar ---------- */
+
+.topbar {
+  background: var(--green-deep);
+  color: var(--paper);
+  padding: calc(14px + env(safe-area-inset-top)) 18px 14px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: var(--shadow);
+}
+
+.topbar h1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+.topbar .eyebrow {
+  font-family: -apple-system, sans-serif;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--brass);
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* ---------- Bottom tab nav ---------- */
+
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: var(--green-darker);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 20;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.15);
+}
+
+.tabbar a {
+  flex: 1;
+  text-decoration: none;
+  color: rgba(242,239,228,0.55);
+  font-family: -apple-system, sans-serif;
+  font-size: 11px;
+  text-align: center;
+  padding: 10px 4px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  letter-spacing: 0.02em;
+}
+
+.tabbar a .icon { font-size: 20px; line-height: 1; }
+
+.tabbar a.active {
+  color: var(--paper);
+}
+
+.tabbar a.active .icon {
+  color: var(--brass);
+}
+
+/* ---------- Layout ---------- */
+
+.page {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 18px 16px 24px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--paper-line);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow);
+}
+
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  color: var(--green-deep);
+  border-bottom: 2px solid var(--paper-line);
+  padding-bottom: 8px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+/* ---------- Forms ---------- */
+
+label {
+  display: block;
+  font-family: -apple-system, sans-serif;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  margin-bottom: 5px;
+  margin-top: 12px;
+}
+
+label:first-child { margin-top: 0; }
+
+input[type="text"], input[type="number"], input[type="date"], select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1.5px solid var(--paper-line);
+  border-radius: 8px;
+  font-size: 16px;
+  font-family: -apple-system, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+input:focus, select:focus, button:focus-visible, a:focus-visible {
+  outline: 3px solid var(--brass);
+  outline-offset: 1px;
+}
+
+.btn {
+  display: inline-block;
+  background: var(--green-deep);
+  color: var(--paper);
+  border: none;
+  border-radius: 8px;
+  padding: 13px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: -apple-system, sans-serif;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 14px;
+}
+
+.btn:active { background: var(--green-darker); }
+
+.btn.secondary {
+  background: transparent;
+  color: var(--green-deep);
+  border: 1.5px solid var(--green-deep);
+}
+
+.btn.danger {
+  background: transparent;
+  color: var(--bogey-red);
+  border: 1.5px solid var(--bogey-red);
+}
+
+.btn.brass {
+  background: var(--brass);
+  color: var(--ink);
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--paper-line);
+  font-family: -apple-system, sans-serif;
+  font-size: 15px;
+}
+
+.checkbox-row:last-child { border-bottom: none; }
+
+.checkbox-row input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--green-deep);
+}
+
+/* ---------- Scorecard hole entry ---------- */
+
+.hole-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--green-deep);
+  color: var(--paper);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+
+.hole-strip .hole-num {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.hole-strip .hole-meta {
+  font-family: -apple-system, sans-serif;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--brass);
+  text-align: right;
+}
+
+.hole-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.hole-nav button {
+  flex: 1;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--green-deep);
+  background: transparent;
+  color: var(--green-deep);
+  font-family: -apple-system, sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.hole-nav button:disabled {
+  opacity: 0.3;
+}
+
+.player-score-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--paper-line);
+  gap: 12px;
+}
+
+.player-score-row:last-child { border-bottom: none; }
+
+.player-score-row .player-name {
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stepper button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: var(--green-deep);
+  color: var(--paper);
+  font-size: 20px;
+  font-family: -apple-system, sans-serif;
+  line-height: 1;
+}
+
+.stepper button:active { background: var(--green-darker); }
+
+.stepper .value {
+  width: 44px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  padding: 4px 0;
+  border-bottom: 2px dashed var(--paper-line);
+  color: var(--ink);
+  font-family: 'Iowan Old Style', 'Georgia', serif;
+}
+
+.stepper .value.over-par { color: var(--bogey-red); }
+.stepper .value.under-par { color: var(--birdie-green); }
+.stepper .value.zero-score { color: var(--ink-soft); border-bottom-color: var(--brass); }
+
+/* ---------- Tappable hole strip ---------- */
+
+.hole-strip {
+  cursor: pointer;
+}
+
+.hole-strip:active {
+  background: var(--green-darker);
+}
+
+/* ---------- Modal overlay (number pad + hole picker) ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26,30,27,0.55);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.modal-sheet {
+  background: var(--paper);
+  width: 100%;
+  max-width: 560px;
+  border-radius: 16px 16px 0 0;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.25);
+}
+
+.modal-sheet h3 {
+  margin: 0 0 14px;
+  font-size: 17px;
+  color: var(--green-deep);
+  text-align: center;
+}
+
+.modal-sheet #scoreInput {
+  width: 100%;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.modal-actions .btn { margin-top: 0; }
+
+/* ---------- Full-page hole picker ---------- */
+
+.hole-picker-header {
+  text-align: center;
+  font-family: -apple-system, sans-serif;
+  margin-bottom: 18px;
+}
+
+.hole-picker-header > div:first-child {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--green-deep);
+  margin-bottom: 4px;
+}
+
+.hole-picker-progress {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.hole-circle-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.hole-circle {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid var(--green-deep);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font-family: -apple-system, sans-serif;
+}
+
+.hole-circle.is-complete {
+  background: var(--green-deep);
+  border-color: var(--green-deep);
+}
+
+.hole-circle.is-complete .circle-num,
+.hole-circle.is-complete .circle-par {
+  color: var(--paper);
+}
+
+.hole-circle.is-incomplete {
+  background: #fff;
+  border-color: var(--ink);
+}
+
+.hole-circle.is-incomplete .circle-num,
+.hole-circle.is-incomplete .circle-par {
+  color: var(--ink);
+}
+
+.hole-circle.is-current {
+  border-color: var(--brass);
+  border-width: 3px;
+  box-shadow: 0 0 0 2px var(--brass) inset;
+}
+
+.circle-num {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.circle-par {
+  font-size: 9px;
+}
+
+.hole-picker-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  font-family: -apple-system, sans-serif;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: 20px;
+}
+
+.hole-picker-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1.5px solid var(--ink);
+}
+
+.legend-dot.legend-complete {
+  background: var(--green-deep);
+  border-color: var(--green-deep);
+}
+
+.legend-dot.legend-incomplete {
+  background: #fff;
+}
+
+/* ---------- Finish-round score check ---------- */
+
+.score-problem-list {
+  max-height: 30vh;
+  overflow-y: auto;
+  margin-bottom: 14px;
+  border: 1px solid var(--paper-line);
+  border-radius: 8px;
+}
+
+.score-problem-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--paper-line);
+  font-family: -apple-system, sans-serif;
+  font-size: 13px;
+}
+
+.score-problem-row:last-child { border-bottom: none; }
+
+.override-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: -apple-system, sans-serif;
+  font-size: 14px;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: 0;
+  margin: 12px 0;
+  padding: 10px;
+  background: var(--paper);
+  border-radius: 8px;
+}
+
+.override-row input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--bogey-red);
+}
+
+.running-total {
+  font-family: -apple-system, sans-serif;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-top: 3px;
+}
+
+/* ---------- Summary / leaderboard tables ---------- */
+
+table.score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+table.score-table th, table.score-table td {
+  padding: 8px 6px;
+  text-align: center;
+  border-bottom: 1px solid var(--paper-line);
+}
+
+table.score-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+}
+
+table.score-table td:first-child, table.score-table th:first-child {
+  text-align: left;
+}
+
+.rank-1 { color: var(--brass-dark); font-weight: 700; }
+
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--paper-line);
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.list-item:last-child { border-bottom: none; }
+
+.list-item .title { font-weight: 600; font-size: 15px; }
+.list-item .subtitle {
+  font-family: -apple-system, sans-serif;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.list-item .chevron { color: var(--ink-soft); font-size: 18px; }
+
+.pill {
+  display: inline-block;
+  background: var(--paper-line);
+  color: var(--ink-soft);
+  font-family: -apple-system, sans-serif;
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 20px;
+}
+
+.fab {
+  position: fixed;
+  right: 18px;
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--brass);
+  color: var(--ink);
+  border: none;
+  font-size: 28px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  z-index: 15;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toast {
+  position: fixed;
+  bottom: calc(160px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 10px 18px;
+  border-radius: 20px;
+  font-family: -apple-system, sans-serif;
+  font-size: 13px;
+  z-index: 30;
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.toast.show { opacity: 1; }
+
+.par-input-grid {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.par-input-grid .hole-label {
+  font-family: -apple-system, sans-serif;
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-align: right;
+}
+
+.section-divider {
+  font-family: -apple-system, sans-serif;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--brass-dark);
+  margin: 18px 0 8px;
+}

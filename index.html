@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Golf Tracker — Play</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#2D4A3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <span class="eyebrow">Golf Tracker</span>
+    <h1 id="pageTitle">Play</h1>
+  </div>
+</div>
+
+<div class="page" id="app">
+  <!-- populated by JS -->
+</div>
+
+<script src="db.js"></script>
+<script src="nav.js"></script>
+<script>
+const app = document.getElementById('app');
+const pageTitle = document.getElementById('pageTitle');
+
+// ---------- routing between "setup" and "scoring" views ----------
+// state persisted in localStorage so an in-progress round survives reload
+const ACTIVE_ROUND_KEY = 'golf_active_round_id';
+
+async function init() {
+  const activeRoundId = localStorage.getItem(ACTIVE_ROUND_KEY);
+  if (activeRoundId) {
+    const round = await GolfDB.get('rounds', Number(activeRoundId));
+    if (round) {
+      renderScoring(round);
+      renderTabbar('index.html');
+      return;
+    }
+  }
+  await renderSetup();
+  renderTabbar('index.html');
+}
+
+// ================= SETUP VIEW =================
+
+async function renderSetup() {
+  pageTitle.textContent = 'New Round';
+  const [players, courses] = await Promise.all([GolfDB.getAll('players'), GolfDB.getAll('courses')]);
+
+  if (courses.length === 0) {
+    app.innerHTML = `
+      <div class="card">
+        <h2>Set up a course first</h2>
+        <p style="font-family:-apple-system,sans-serif;color:var(--ink-soft);font-size:14px;">
+          You need at least one course with hole pars before you can start a round.
+        </p>
+        <a href="courses.html" class="btn brass">Go to Courses</a>
+      </div>`;
+    return;
+  }
+
+  if (players.length === 0) {
+    app.innerHTML = `
+      <div class="card">
+        <h2>Add players first</h2>
+        <p style="font-family:-apple-system,sans-serif;color:var(--ink-soft);font-size:14px;">
+          Add at least one player before starting a round.
+        </p>
+        <a href="players.html" class="btn brass">Go to Players</a>
+      </div>`;
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  app.innerHTML = `
+    <div class="card">
+      <h2>Start a new round</h2>
+      <label for="roundDate">Date</label>
+      <input type="date" id="roundDate" value="${today}">
+
+      <label for="courseSelect">Course</label>
+      <select id="courseSelect">
+        ${courses.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+      </select>
+
+      <label>Players</label>
+      <div id="playerList">
+        ${players.map(p => `
+          <div class="checkbox-row">
+            <input type="checkbox" id="p_${p.id}" value="${p.id}" class="player-check">
+            <label for="p_${p.id}" style="margin:0;text-transform:none;font-size:15px;color:var(--ink);letter-spacing:0;">${escapeHtml(p.name)}</label>
+          </div>
+        `).join('')}
+      </div>
+
+      <button class="btn" id="startBtn">Start round</button>
+    </div>
+
+    <div class="card">
+      <h2>Past rounds</h2>
+      <div id="pastRounds"><p class="empty-state">Loading…</p></div>
+    </div>
+  `;
+
+  document.getElementById('startBtn').addEventListener('click', startRound);
+  loadPastRounds(players, courses);
+}
+
+async function loadPastRounds(players, courses) {
+  const rounds = await GolfDB.getAll('rounds');
+  const container = document.getElementById('pastRounds');
+  if (rounds.length === 0) {
+    container.innerHTML = `<p class="empty-state">No rounds played yet.</p>`;
+    return;
+  }
+  rounds.sort((a, b) => b.date.localeCompare(a.date));
+  const courseMap = Object.fromEntries(courses.map(c => [c.id, c]));
+
+  const rows = await Promise.all(rounds.slice(0, 15).map(async r => {
+    const course = courseMap[r.courseId];
+    const scores = await GolfDB.getScoresForRound(r.id);
+    const totalHoles = course ? course.holes.length : 18;
+    const holesEntered = new Set(scores.filter(s => s.strokes > 0).map(s => s.holeNumber)).size;
+    const inProgress = holesEntered > 0 && holesEntered < totalHoles;
+    return `
+      <a href="#" class="list-item resume-round" data-round-id="${r.id}">
+        <div>
+          <div class="title">${course ? escapeHtml(course.name) : 'Unknown course'}</div>
+          <div class="subtitle">${fmtDate(r.date)} · ${r.playerIds.length} player${r.playerIds.length !== 1 ? 's' : ''}${inProgress ? ' · in progress' : ''}</div>
+        </div>
+        <span class="chevron">›</span>
+      </a>`;
+  }));
+  container.innerHTML = rows.join('');
+
+  container.querySelectorAll('.resume-round').forEach(el => {
+    el.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const roundId = Number(el.dataset.roundId);
+      const round = await GolfDB.get('rounds', roundId);
+      localStorage.setItem(ACTIVE_ROUND_KEY, roundId);
+      renderScoring(round);
+    });
+  });
+}
+
+async function startRound() {
+  const date = document.getElementById('roundDate').value;
+  const courseId = Number(document.getElementById('courseSelect').value);
+  const playerIds = Array.from(document.querySelectorAll('.player-check:checked')).map(el => Number(el.value));
+
+  if (!date) { showToast('Pick a date'); return; }
+  if (playerIds.length === 0) { showToast('Select at least one player'); return; }
+
+  const roundId = await GolfDB.createRound({ date, courseId, playerIds });
+  localStorage.setItem(ACTIVE_ROUND_KEY, roundId);
+  const round = await GolfDB.get('rounds', roundId);
+  renderScoring(round);
+}
+
+// ================= SCORING VIEW =================
+
+let scoringState = null; // { round, course, players, scores: Map("holeNum_playerId" -> strokes), currentHole }
+
+async function renderScoring(round) {
+  pageTitle.textContent = 'Scoring';
+  const [course, allPlayers, scores] = await Promise.all([
+    GolfDB.get('courses', round.courseId),
+    GolfDB.getAll('players'),
+    GolfDB.getScoresForRound(round.id)
+  ]);
+
+  const players = allPlayers.filter(p => round.playerIds.includes(p.id));
+  const scoreMap = new Map();
+  scores.forEach(s => scoreMap.set(`${s.holeNumber}_${s.playerId}`, s.strokes));
+
+  // find first hole with missing (zero) scores, else hole 1
+  let startHole = course.holes[0].number;
+  for (const h of course.holes) {
+    const allFilled = players.every(p => (scoreMap.get(`${h.number}_${p.id}`) || 0) > 0);
+    if (!allFilled) { startHole = h.number; break; }
+  }
+
+  scoringState = { round, course, players, scoreMap, currentHole: startHole };
+  drawHole();
+}
+
+function drawHole() {
+  pageTitle.textContent = 'Scoring';
+  const { course, players, scoreMap, currentHole } = scoringState;
+  const holeIdx = course.holes.findIndex(h => h.number === currentHole);
+  const hole = course.holes[holeIdx];
+  const isFirst = holeIdx === 0;
+  const isLast = holeIdx === course.holes.length - 1;
+
+  const roundTotals = players.map(p => {
+    let total = 0;
+    let holesPlayed = 0;
+    course.holes.forEach(h => {
+      const v = scoreMap.get(`${h.number}_${p.id}`);
+      if (v) { total += v; holesPlayed++; }
+    });
+    return { player: p, total, holesPlayed };
+  });
+
+  app.innerHTML = `
+    <div class="hole-strip" id="holeStripTap">
+      <div>
+        <div class="hole-meta">Hole (tap to jump)</div>
+        <div class="hole-num">${hole.number}</div>
+      </div>
+      <div class="hole-meta">
+        Par ${hole.par}<br>${course.name}
+      </div>
+    </div>
+
+    <div class="hole-nav">
+      <button id="prevHole" ${isFirst ? 'disabled' : ''}>‹ Prev</button>
+      <button id="nextHole" ${isLast ? 'disabled' : ''}>Next ›</button>
+    </div>
+
+    <div class="card">
+      <h2>Strokes this hole</h2>
+      <div id="scoreRows"></div>
+    </div>
+
+    <div class="card">
+      <h2>Running total</h2>
+      <table class="score-table">
+        <tr><th>Player</th><th>Thru</th><th>Total</th></tr>
+        ${roundTotals.map(rt => `
+          <tr>
+            <td>${escapeHtml(rt.player.name)}</td>
+            <td class="tabular">${rt.holesPlayed}/${course.holes.length}</td>
+            <td class="tabular">${rt.total || '–'}</td>
+          </tr>`).join('')}
+      </table>
+    </div>
+
+    ${isLast ? `<button class="btn brass" id="finishRound">Finish round</button>` : ''}
+    <button class="btn secondary" id="endEarly">Save &amp; exit</button>
+  `;
+
+  const rowsContainer = document.getElementById('scoreRows');
+  rowsContainer.innerHTML = players.map(p => {
+    const val = scoreMap.get(`${hole.number}_${p.id}`);
+    const display = val != null ? val : 0;
+    return `
+      <div class="player-score-row" data-player-id="${p.id}">
+        <span class="player-name">${escapeHtml(p.name)}</span>
+        <div class="stepper">
+          <button class="dec">−</button>
+          <button class="value ${scoreClass(display, hole.par)}" type="button">${display}</button>
+          <button class="inc">+</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  rowsContainer.querySelectorAll('.player-score-row').forEach(row => {
+    const playerId = Number(row.dataset.playerId);
+    const valueEl = row.querySelector('.value');
+    const dec = row.querySelector('.dec');
+    const inc = row.querySelector('.inc');
+
+    async function setValue(newValue) {
+      const current = Math.max(0, newValue);
+      valueEl.textContent = current;
+      valueEl.className = 'value ' + scoreClass(current, hole.par);
+      scoreMap.set(`${hole.number}_${playerId}`, current);
+      await GolfDB.setScore(scoringState.round.id, playerId, hole.number, current);
+      refreshTotalsTable();
+    }
+    dec.addEventListener('click', () => setValue(Number(valueEl.textContent) - 1));
+    inc.addEventListener('click', () => setValue(Number(valueEl.textContent) + 1));
+    valueEl.addEventListener('click', () => promptForScore(Number(valueEl.textContent), setValue));
+
+    // if no score recorded yet, save 0 immediately so it's not lost
+    if (scoreMap.get(`${hole.number}_${playerId}`) == null) {
+      GolfDB.setScore(scoringState.round.id, playerId, hole.number, 0).then(() => {
+        scoreMap.set(`${hole.number}_${playerId}`, 0);
+      });
+    }
+  });
+
+  document.getElementById('holeStripTap').addEventListener('click', openHolePicker);
+
+  document.getElementById('prevHole')?.addEventListener('click', () => {
+    scoringState.currentHole = course.holes[holeIdx - 1].number;
+    drawHole();
+  });
+  document.getElementById('nextHole')?.addEventListener('click', () => {
+    scoringState.currentHole = course.holes[holeIdx + 1].number;
+    drawHole();
+  });
+  document.getElementById('finishRound')?.addEventListener('click', () => {
+    checkAllScoresThenFinish(course, players, scoreMap);
+  });
+  document.getElementById('endEarly').addEventListener('click', () => {
+    localStorage.removeItem(ACTIVE_ROUND_KEY);
+    showToast('Round saved');
+    init();
+  });
+}
+
+// ---------- finish-round zero guard (checks every hole, not just current) ----------
+
+function checkAllScoresThenFinish(course, players, scoreMap) {
+  const problems = [];
+  course.holes.forEach(h => {
+    const missing = players.filter(p => (scoreMap.get(`${h.number}_${p.id}`) || 0) === 0);
+    if (missing.length > 0) {
+      problems.push({ hole: h.number, names: missing.map(p => p.name).join(', ') });
+    }
+  });
+
+  if (problems.length === 0) {
+    finishRound();
+    return;
+  }
+
+  const listHtml = problems.map(p => `
+    <div class="score-problem-row">
+      <span class="pill">Hole ${p.hole}</span>
+      <span>${escapeHtml(p.names)}</span>
+    </div>
+  `).join('');
+
+  showModal(`
+    <h3>Some scores are still 0</h3>
+    <p style="font-family:-apple-system,sans-serif;font-size:14px;color:var(--ink-soft);text-align:center;margin-top:0;">
+      ${problems.length} hole${problems.length === 1 ? '' : 's'} ${problems.length === 1 ? 'has' : 'have'} a player still showing 0 strokes.
+    </p>
+    <div class="score-problem-list">${listHtml}</div>
+    <label class="override-row" for="overrideZeros">
+      <input type="checkbox" id="overrideZeros">
+      <span>Finish anyway, leaving these as 0</span>
+    </label>
+    <div class="modal-actions">
+      <button class="btn secondary" id="modalGoBack">Go back &amp; fix</button>
+      <button class="btn brass" id="modalFinishOverride" disabled>Finish round</button>
+    </div>
+  `);
+
+  const checkbox = document.getElementById('overrideZeros');
+  const finishBtn = document.getElementById('modalFinishOverride');
+  checkbox.addEventListener('change', () => {
+    finishBtn.disabled = !checkbox.checked;
+  });
+
+  document.getElementById('modalGoBack').addEventListener('click', closeModal);
+  finishBtn.addEventListener('click', () => {
+    if (!checkbox.checked) return;
+    closeModal();
+    finishRound();
+  });
+}
+
+// ---------- modal helper ----------
+
+function showModal(innerHtml) {
+  closeModal();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'modalBackdrop';
+  backdrop.innerHTML = `<div class="modal-sheet">${innerHtml}</div>`;
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) closeModal();
+  });
+  document.body.appendChild(backdrop);
+}
+
+function closeModal() {
+  document.getElementById('modalBackdrop')?.remove();
+}
+
+// ---------- number pad ----------
+
+function promptForScore(currentValue, onConfirm) {
+  showModal(`
+    <h3>Strokes</h3>
+    <input
+      type="text"
+      inputmode="numeric"
+      pattern="[0-9]*"
+      id="scoreInput"
+      value="${currentValue === 0 ? '' : currentValue}"
+      placeholder="0"
+      style="font-size:40px;text-align:center;font-weight:700;padding:14px;margin-bottom:16px;"
+      maxlength="2"
+    >
+    <div class="modal-actions">
+      <button class="btn secondary" id="modalCancel">Cancel</button>
+      <button class="btn brass" id="modalSet">Set score</button>
+    </div>
+  `);
+
+  const input = document.getElementById('scoreInput');
+  // iOS needs a brief delay after the sheet renders before focus reliably raises the keyboard
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+
+  input.addEventListener('input', () => {
+    input.value = input.value.replace(/[^0-9]/g, '').slice(0, 2);
+  });
+
+  function submit() {
+    const value = input.value === '' ? 0 : Number(input.value);
+    closeModal();
+    onConfirm(value);
+  }
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submit();
+  });
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('modalSet').addEventListener('click', submit);
+}
+
+// ---------- hole picker ----------
+
+function openHolePicker() {
+  const { course, players, scoreMap, currentHole } = scoringState;
+  const totalPar = course.holes.reduce((s, h) => s + h.par, 0);
+  const completeCount = course.holes.filter(h =>
+    players.every(p => (scoreMap.get(`${h.number}_${p.id}`) || 0) > 0)
+  ).length;
+
+  const circlesHtml = course.holes.map(h => {
+    const isComplete = players.every(p => (scoreMap.get(`${h.number}_${p.id}`) || 0) > 0);
+    const isCurrent = h.number === currentHole;
+    return `
+      <button data-hole="${h.number}" class="hole-circle ${isComplete ? 'is-complete' : 'is-incomplete'} ${isCurrent ? 'is-current' : ''}">
+        <span class="circle-num">${h.number}</span>
+        <span class="circle-par">Par ${h.par}</span>
+      </button>`;
+  }).join('');
+
+  pageTitle.textContent = 'Jump to Hole';
+  app.innerHTML = `
+    <div class="hole-picker-header">
+      <div>${course.name}</div>
+      <div class="hole-picker-progress">${completeCount}/${course.holes.length} holes complete · Par ${totalPar}</div>
+    </div>
+    <div class="hole-circle-grid">${circlesHtml}</div>
+    <div class="hole-picker-legend">
+      <span><span class="legend-dot legend-complete"></span> Complete</span>
+      <span><span class="legend-dot legend-incomplete"></span> Needs a score</span>
+    </div>
+    <button class="btn secondary" id="backToScoring">‹ Back to scoring</button>
+  `;
+
+  document.querySelectorAll('.hole-circle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      scoringState.currentHole = Number(btn.dataset.hole);
+      drawHole();
+    });
+  });
+  document.getElementById('backToScoring').addEventListener('click', drawHole);
+}
+
+function refreshTotalsTable() {
+  // cheap re-render of just the totals card without losing hole state
+  drawHole();
+}
+
+function scoreClass(strokes, par) {
+  if (strokes === 0) return 'zero-score';
+  if (strokes < par) return 'under-par';
+  if (strokes > par) return 'over-par';
+  return '';
+}
+
+function finishRound() {
+  localStorage.removeItem(ACTIVE_ROUND_KEY);
+  showToast('Round complete!');
+  init();
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+init();
+</script>
+</body>
+</html>

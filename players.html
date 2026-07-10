@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Golf Tracker — Players</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2D4A3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <span class="eyebrow">Golf Tracker</span>
+    <h1>Players</h1>
+  </div>
+</div>
+
+<div class="page" id="app">
+  <div class="card">
+    <h2>Add a player</h2>
+    <label for="newPlayerName">Name</label>
+    <input type="text" id="newPlayerName" placeholder="e.g. Dave">
+    <button class="btn" id="addPlayerBtn">Add player</button>
+  </div>
+
+  <div class="card">
+    <h2>Standings</h2>
+    <p style="font-family:-apple-system,sans-serif;font-size:12px;color:var(--ink-soft);margin:-6px 0 12px;">
+      Ranked by average score to par across completed rounds. Lowest wins each round.
+    </p>
+    <div id="standings"><p class="empty-state">Loading…</p></div>
+  </div>
+
+  <div class="card">
+    <h2>All players</h2>
+    <div id="playerList"><p class="empty-state">Loading…</p></div>
+  </div>
+</div>
+
+<script src="db.js"></script>
+<script src="nav.js"></script>
+<script>
+async function loadPlayers() {
+  const players = await GolfDB.getAll('players');
+  const listEl = document.getElementById('playerList');
+
+  if (players.length === 0) {
+    listEl.innerHTML = `<p class="empty-state">No players yet. Add one above.</p>`;
+  } else {
+    listEl.innerHTML = players.map(p => `
+      <div class="list-item">
+        <span class="title">${escapeHtml(p.name)}</span>
+        <button class="btn danger" style="width:auto;margin:0;padding:6px 12px;font-size:13px;" data-remove="${p.id}">Remove</button>
+      </div>
+    `).join('');
+    listEl.querySelectorAll('[data-remove]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = Number(btn.dataset.remove);
+        const player = players.find(p => p.id === id);
+        if (confirm(`Remove ${player.name}? Their past scores are kept but they won't appear in new rounds.`)) {
+          await GolfDB.remove('players', id);
+          loadPlayers();
+        }
+      });
+    });
+  }
+
+  await loadStandings(players);
+}
+
+async function loadStandings(players) {
+  const el = document.getElementById('standings');
+  const [rounds, courses] = await Promise.all([GolfDB.getAll('rounds'), GolfDB.getAll('courses')]);
+  const courseMap = Object.fromEntries(courses.map(c => [c.id, c]));
+
+  if (rounds.length === 0) {
+    el.innerHTML = `<p class="empty-state">Play some rounds to see standings.</p>`;
+    return;
+  }
+
+  // per player: wins, roundsPlayed, total score-to-par (for completed rounds only)
+  const stats = {}; // playerId -> { wins, played, toParSum, toParCount }
+  players.forEach(p => stats[p.id] = { name: p.name, wins: 0, played: 0, toParSum: 0, toParCount: 0 });
+
+  for (const round of rounds) {
+    const course = courseMap[round.courseId];
+    if (!course) continue;
+    const scores = await GolfDB.getScoresForRound(round.id);
+    const totalHoles = course.holes.length;
+    const coursePar = course.holes.reduce((s, h) => s + h.par, 0);
+
+    const totals = round.playerIds.map(pid => {
+      const playerScores = scores.filter(s => s.playerId === pid && s.strokes > 0);
+      const holesPlayed = playerScores.length;
+      const total = playerScores.reduce((s, sc) => s + sc.strokes, 0);
+      return { pid, total, holesPlayed, complete: holesPlayed === totalHoles };
+    });
+
+    totals.forEach(t => {
+      if (!stats[t.pid]) return;
+      if (t.holesPlayed > 0) stats[t.pid].played += 1;
+      if (t.complete) {
+        stats[t.pid].toParSum += (t.total - coursePar);
+        stats[t.pid].toParCount += 1;
+      }
+    });
+
+    const completedTotals = totals.filter(t => t.complete);
+    if (completedTotals.length > 1) {
+      const best = Math.min(...completedTotals.map(t => t.total));
+      const winners = completedTotals.filter(t => t.total === best);
+      // in case of a tie, all tied players get a win credited
+      winners.forEach(w => { if (stats[w.pid]) stats[w.pid].wins += 1; });
+    }
+  }
+
+  const rows = Object.values(stats)
+    .filter(s => s.played > 0)
+    .map(s => ({ ...s, avgToPar: s.toParCount > 0 ? s.toParSum / s.toParCount : null }))
+    .sort((a, b) => {
+      if (a.avgToPar == null) return 1;
+      if (b.avgToPar == null) return -1;
+      return a.avgToPar - b.avgToPar;
+    });
+
+  if (rows.length === 0) {
+    el.innerHTML = `<p class="empty-state">No completed rounds yet.</p>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <table class="score-table">
+      <tr><th>Player</th><th>Rounds</th><th>Wins</th><th>Avg ±Par</th></tr>
+      ${rows.map((r, i) => `
+        <tr>
+          <td class="${i === 0 ? 'rank-1' : ''}">${escapeHtml(r.name)}</td>
+          <td class="tabular">${r.played}</td>
+          <td class="tabular">${r.wins}</td>
+          <td class="tabular">${r.avgToPar == null ? '–' : (r.avgToPar > 0 ? '+' : '') + r.avgToPar.toFixed(1)}</td>
+        </tr>`).join('')}
+    </table>
+  `;
+}
+
+document.getElementById('addPlayerBtn').addEventListener('click', async () => {
+  const input = document.getElementById('newPlayerName');
+  const name = input.value.trim();
+  if (!name) { showToast('Enter a name'); return; }
+  await GolfDB.createPlayer(name);
+  input.value = '';
+  showToast(`${name} added`);
+  loadPlayers();
+});
+
+document.getElementById('newPlayerName').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('addPlayerBtn').click();
+});
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+renderTabbar('players.html');
+loadPlayers();
+</script>
+</body>
+</html>

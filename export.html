@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Golf Tracker — Backup</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2D4A3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <span class="eyebrow">Golf Tracker</span>
+    <h1>Backup</h1>
+  </div>
+</div>
+
+<div class="page">
+  <div class="card">
+    <h2>Export your data</h2>
+    <p style="font-family:-apple-system,sans-serif;font-size:14px;color:var(--ink-soft);">
+      All your data lives only on this phone, inside this app. Export regularly and save the file
+      to iCloud Drive or Files so you never lose it.
+    </p>
+    <div id="statsSummary" class="pill" style="margin-bottom:8px;"></div>
+    <button class="btn" id="exportBtn">Export backup (.json)</button>
+  </div>
+
+  <div class="card">
+    <h2>Restore from backup</h2>
+    <p style="font-family:-apple-system,sans-serif;font-size:14px;color:var(--ink-soft);">
+      Choose a backup file you exported previously.
+    </p>
+    <label for="importFile">Backup file</label>
+    <input type="file" id="importFile" accept="application/json,.json">
+    <label style="margin-top:14px;display:flex;align-items:center;gap:8px;flex-direction:row;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);">
+      <input type="checkbox" id="replaceMode" style="width:20px;height:20px;">
+      Replace all existing data instead of merging
+    </label>
+    <button class="btn secondary" id="importBtn">Import</button>
+  </div>
+
+  <div class="card">
+    <h2>Danger zone</h2>
+    <p style="font-family:-apple-system,sans-serif;font-size:14px;color:var(--ink-soft);">
+      Permanently erase everything stored in this app on this phone. Make sure you've exported a backup first.
+    </p>
+    <button class="btn danger" id="wipeBtn">Erase all data</button>
+  </div>
+</div>
+
+<script src="db.js"></script>
+<script src="nav.js"></script>
+<script>
+async function loadSummary() {
+  const [players, courses, rounds] = await Promise.all([
+    GolfDB.getAll('players'), GolfDB.getAll('courses'), GolfDB.getAll('rounds')
+  ]);
+  document.getElementById('statsSummary').textContent =
+    `${players.length} players · ${courses.length} courses · ${rounds.length} rounds`;
+}
+
+document.getElementById('exportBtn').addEventListener('click', async () => {
+  const data = await GolfDB.exportAll();
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `golf-backup-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast('Backup downloaded — tap Share icon to save to Files');
+});
+
+document.getElementById('importBtn').addEventListener('click', async () => {
+  const fileInput = document.getElementById('importFile');
+  const file = fileInput.files[0];
+  if (!file) { showToast('Choose a backup file first'); return; }
+  const replace = document.getElementById('replaceMode').checked;
+
+  if (replace && !confirm('This will erase all current data and replace it with the backup. Continue?')) {
+    return;
+  }
+
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    await GolfDB.importAll(data, replace ? 'replace' : 'merge');
+    showToast('Backup restored');
+    loadSummary();
+    fileInput.value = '';
+  } catch (err) {
+    showToast('Could not read that file');
+    console.error(err);
+  }
+});
+
+document.getElementById('wipeBtn').addEventListener('click', async () => {
+  if (!confirm('Erase ALL players, courses, rounds and scores from this phone? This cannot be undone unless you have a backup.')) return;
+  if (!confirm('Really sure? This is permanent.')) return;
+  const db = await GolfDB.open();
+  const t = db.transaction(['players', 'courses', 'rounds', 'scores'], 'readwrite');
+  t.objectStore('players').clear();
+  t.objectStore('courses').clear();
+  t.objectStore('rounds').clear();
+  t.objectStore('scores').clear();
+  t.oncomplete = () => {
+    localStorage.removeItem('golf_active_round_id');
+    showToast('All data erased');
+    loadSummary();
+  };
+});
+
+renderTabbar('export.html');
+loadSummary();
+</script>
+</body>
+</html>
