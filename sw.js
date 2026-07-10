@@ -1,4 +1,4 @@
-const CACHE_NAME = 'golf-tracker-v6';
+const CACHE_NAME = 'golf-tracker-v7';
 const ASSETS = [
   './',
   './index.html',
@@ -18,7 +18,16 @@ const ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) => {
+      // cache each file individually so one failed fetch doesn't sink the whole batch
+      return Promise.all(
+        ASSETS.map((url) =>
+          cache.add(url).catch((err) => {
+            console.warn('Failed to precache', url, err);
+          })
+        )
+      );
+    })
   );
   self.skipWaiting();
 });
@@ -32,10 +41,20 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+function fetchWithTimeout(request, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    fetch(request).then(
+      (res) => { clearTimeout(timer); resolve(res); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    fetch(event.request)
+    fetchWithTimeout(event.request, 3000)
       .then((response) => {
         if (response && response.status === 200) {
           const clone = response.clone();
@@ -43,6 +62,15 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() =>
+        caches.match(event.request).then((cached) => {
+          if (cached) return cached;
+          // last resort for navigations: serve the cached app shell so the page still loads
+          if (event.request.mode === 'navigate') {
+            return caches.match('./index.html');
+          }
+          return Response.error();
+        })
+      )
   );
 });
