@@ -201,16 +201,6 @@ function drawHole() {
   const isFirst = holeIdx === 0;
   const isLast = holeIdx === course.holes.length - 1;
 
-  const roundTotals = players.map(p => {
-    let total = 0;
-    let holesPlayed = 0;
-    course.holes.forEach(h => {
-      const v = scoreMap.get(`${h.number}_${p.id}`);
-      if (v) { total += v; holesPlayed++; }
-    });
-    return { player: p, total, holesPlayed };
-  });
-
   app.innerHTML = `
     <div class="hole-strip" id="holeStripTap">
       <div>
@@ -230,19 +220,6 @@ function drawHole() {
     <div class="card">
       <h2>Strokes this hole</h2>
       <div id="scoreRows"></div>
-    </div>
-
-    <div class="card">
-      <h2>Running total</h2>
-      <table class="score-table">
-        <tr><th>Player</th><th>Thru</th><th>Total</th></tr>
-        ${roundTotals.map(rt => `
-          <tr>
-            <td>${escapeHtml(rt.player.name)}</td>
-            <td class="tabular">${rt.holesPlayed}/${course.holes.length}</td>
-            <td class="tabular">${rt.total || '–'}</td>
-          </tr>`).join('')}
-      </table>
     </div>
 
     ${isLast ? `<button class="btn brass" id="finishRound">Finish round</button>` : ''}
