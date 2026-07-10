@@ -38,13 +38,13 @@ async function renderList() {
         ${courses.length === 0
           ? '<p class="empty-state">No courses yet. Add one below.</p>'
           : courses.map(c => `
-            <a href="#" class="list-item edit-course" data-id="${c.id}">
-              <div>
+            <div class="list-item course-row" data-id="${c.id}">
+              <a href="#" class="edit-course" data-id="${c.id}" style="flex:1;min-width:0;text-decoration:none;color:var(--ink);">
                 <div class="title">${escapeHtml(c.name)}</div>
                 <div class="subtitle">${c.holes.length} holes · par ${c.holes.reduce((s,h)=>s+h.par,0)}</div>
-              </div>
-              <span class="chevron">›</span>
-            </a>`).join('')}
+              </a>
+              <a href="course-stats.html?id=${c.id}" class="pill" style="text-decoration:none;">Stats ›</a>
+            </div>`).join('')}
       </div>
     </div>
     <button class="btn brass" id="newCourseBtn">+ Add course</button>

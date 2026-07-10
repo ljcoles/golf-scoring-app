@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Golf Tracker — Player Stats</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2D4A3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <span class="eyebrow">Golf Tracker</span>
+    <h1 id="pageTitle">Player Stats</h1>
+  </div>
+</div>
+
+<div class="page" id="app">
+  <p class="empty-state">Loading…</p>
+</div>
+
+<script src="db.js"></script>
+<script src="stats.js"></script>
+<script src="nav.js"></script>
+<script>
+const app = document.getElementById('app');
+const pageTitle = document.getElementById('pageTitle');
+const params = new URLSearchParams(window.location.search);
+const playerId = Number(params.get('id'));
+
+function fmtToPar(n) {
+  if (n == null) return '–';
+  return (n > 0 ? '+' : '') + n.toFixed(1);
+}
+
+async function load() {
+  const player = await GolfDB.get('players', playerId);
+  if (!player) {
+    app.innerHTML = `<div class="card"><p class="empty-state">Player not found.</p></div>
+      <a href="players.html" class="btn secondary">Back to Players</a>`;
+    return;
+  }
+
+  pageTitle.textContent = player.name;
+  const { overall, byCourse } = await computePlayerStats(playerId);
+
+  if (overall.roundsPlayed === 0) {
+    app.innerHTML = `
+      <div class="card">
+        <h2>${escapeHtml(player.name)}</h2>
+        <p class="empty-state">No completed rounds yet for this player.</p>
+      </div>
+      <a href="players.html" class="btn secondary">Back to Players</a>
+    `;
+    return;
+  }
+
+  app.innerHTML = `
+    <div class="card">
+      <h2>Overall</h2>
+      <table class="score-table">
+        <tr><td>Rounds played</td><td class="tabular">${overall.roundsPlayed}</td></tr>
+        <tr><td>Wins</td><td class="tabular">${overall.wins}</td></tr>
+        <tr><td>Avg score to par</td><td class="tabular">${fmtToPar(overall.avgToPar)}</td></tr>
+        <tr><td>Total penalty strokes</td><td class="tabular">${overall.totalPenalties}</td></tr>
+        <tr><td>Best round</td><td class="tabular">${overall.best ? `${overall.best.total} (${fmtToPar(overall.best.toPar)})` : '–'}</td></tr>
+        <tr><td>Worst round</td><td class="tabular">${overall.worst ? `${overall.worst.total} (${fmtToPar(overall.worst.toPar)})` : '–'}</td></tr>
+      </table>
+      ${overall.best ? `<p class="subtitle-note">Best: ${escapeHtml(overall.best.courseName)} · ${fmtDate(overall.best.date)}</p>` : ''}
+      ${overall.worst ? `<p class="subtitle-note">Worst: ${escapeHtml(overall.worst.courseName)} · ${fmtDate(overall.worst.date)}</p>` : ''}
+    </div>
+
+    <div class="card">
+      <h2>By course</h2>
+      ${byCourse.length === 0 ? '<p class="empty-state">No course data yet.</p>' : `
+        <table class="score-table">
+          <tr><th>Course</th><th>Rounds</th><th>Avg ±Par</th></tr>
+          ${byCourse.map(c => `
+            <tr>
+              <td>${escapeHtml(c.name)}</td>
+              <td class="tabular">${c.roundsPlayed}</td>
+              <td class="tabular">${fmtToPar(c.avgToPar)}</td>
+            </tr>`).join('')}
+        </table>
+      `}
+    </div>
+
+    <a href="players.html" class="btn secondary">Back to Players</a>
+  `;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+renderTabbar('players.html');
+load();
+</script>
+</body>
+</html>

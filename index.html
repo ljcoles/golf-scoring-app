@@ -168,7 +168,7 @@ async function startRound() {
 
 // ================= SCORING VIEW =================
 
-let scoringState = null; // { round, course, players, scores: Map("holeNum_playerId" -> strokes), currentHole }
+let scoringState = null; // { round, course, players, scoreMap, penaltyMap, currentHole }
 
 async function renderScoring(round) {
   pageTitle.textContent = 'Scoring';
@@ -180,7 +180,11 @@ async function renderScoring(round) {
 
   const players = allPlayers.filter(p => round.playerIds.includes(p.id));
   const scoreMap = new Map();
-  scores.forEach(s => scoreMap.set(`${s.holeNumber}_${s.playerId}`, s.strokes));
+  const penaltyMap = new Map();
+  scores.forEach(s => {
+    scoreMap.set(`${s.holeNumber}_${s.playerId}`, s.strokes);
+    penaltyMap.set(`${s.holeNumber}_${s.playerId}`, s.penalties || 0);
+  });
 
   // find first hole with missing (zero) scores, else hole 1
   let startHole = course.holes[0].number;
@@ -189,13 +193,13 @@ async function renderScoring(round) {
     if (!allFilled) { startHole = h.number; break; }
   }
 
-  scoringState = { round, course, players, scoreMap, currentHole: startHole };
+  scoringState = { round, course, players, scoreMap, penaltyMap, currentHole: startHole };
   drawHole();
 }
 
 function drawHole() {
   pageTitle.textContent = 'Scoring';
-  const { course, players, scoreMap, currentHole } = scoringState;
+  const { course, players, scoreMap, penaltyMap, currentHole } = scoringState;
   const holeIdx = course.holes.findIndex(h => h.number === currentHole);
   const hole = course.holes[holeIdx];
   const isFirst = holeIdx === 0;
@@ -230,6 +234,7 @@ function drawHole() {
   rowsContainer.innerHTML = players.map(p => {
     const val = scoreMap.get(`${hole.number}_${p.id}`);
     const display = val != null ? val : 0;
+    const penaltyVal = penaltyMap.get(`${hole.number}_${p.id}`) || 0;
     return `
       <div class="player-score-row" data-player-id="${p.id}">
         <span class="player-name">${escapeHtml(p.name)}</span>
@@ -237,6 +242,12 @@ function drawHole() {
           <button class="dec">−</button>
           <button class="value ${scoreClass(display, hole.par)}" type="button">${display}</button>
           <button class="inc">+</button>
+        </div>
+        <div class="penalty-stepper">
+          <span class="penalty-label">Penalty</span>
+          <button class="penalty-dec">−</button>
+          <span class="penalty-value">${penaltyVal}</span>
+          <button class="penalty-inc">+</button>
         </div>
       </div>`;
   }).join('');
@@ -246,6 +257,9 @@ function drawHole() {
     const valueEl = row.querySelector('.value');
     const dec = row.querySelector('.dec');
     const inc = row.querySelector('.inc');
+    const penaltyValueEl = row.querySelector('.penalty-value');
+    const penaltyDec = row.querySelector('.penalty-dec');
+    const penaltyInc = row.querySelector('.penalty-inc');
 
     async function setValue(newValue) {
       const current = Math.max(0, newValue);
@@ -253,11 +267,19 @@ function drawHole() {
       valueEl.className = 'value ' + scoreClass(current, hole.par);
       scoreMap.set(`${hole.number}_${playerId}`, current);
       await GolfDB.setScore(scoringState.round.id, playerId, hole.number, current);
-      refreshTotalsTable();
     }
     dec.addEventListener('click', () => setValue(Number(valueEl.textContent) - 1));
     inc.addEventListener('click', () => setValue(Number(valueEl.textContent) + 1));
     valueEl.addEventListener('click', () => promptForScore(Number(valueEl.textContent), setValue));
+
+    async function setPenalty(newValue) {
+      const current = Math.max(0, newValue);
+      penaltyValueEl.textContent = current;
+      penaltyMap.set(`${hole.number}_${playerId}`, current);
+      await GolfDB.setPenalty(scoringState.round.id, playerId, hole.number, current);
+    }
+    penaltyDec.addEventListener('click', () => setPenalty(Number(penaltyValueEl.textContent) - 1));
+    penaltyInc.addEventListener('click', () => setPenalty(Number(penaltyValueEl.textContent) + 1));
 
     // if no score recorded yet, save 0 immediately so it's not lost
     if (scoreMap.get(`${hole.number}_${playerId}`) == null) {
@@ -440,11 +462,6 @@ function openHolePicker() {
     });
   });
   document.getElementById('backToScoring').addEventListener('click', drawHole);
-}
-
-function refreshTotalsTable() {
-  // cheap re-render of just the totals card without losing hole state
-  drawHole();
 }
 
 function scoreClass(strokes, par) {

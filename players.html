@@ -42,6 +42,7 @@
 </div>
 
 <script src="db.js"></script>
+<script src="stats.js"></script>
 <script src="nav.js"></script>
 <script>
 async function loadPlayers() {
@@ -53,7 +54,7 @@ async function loadPlayers() {
   } else {
     listEl.innerHTML = players.map(p => `
       <div class="list-item">
-        <span class="title">${escapeHtml(p.name)}</span>
+        <a href="player-detail.html?id=${p.id}" class="title" style="text-decoration:none;color:var(--ink);">${escapeHtml(p.name)} ›</a>
         <button class="btn danger" style="width:auto;margin:0;padding:6px 12px;font-size:13px;" data-remove="${p.id}">Remove</button>
       </div>
     `).join('');
@@ -84,21 +85,15 @@ async function loadStandings(players) {
 
   // per player: wins, roundsPlayed, total score-to-par (for completed rounds only)
   const stats = {}; // playerId -> { wins, played, toParSum, toParCount }
-  players.forEach(p => stats[p.id] = { name: p.name, wins: 0, played: 0, toParSum: 0, toParCount: 0 });
+  players.forEach(p => stats[p.id] = { id: p.id, name: p.name, wins: 0, played: 0, toParSum: 0, toParCount: 0 });
 
   for (const round of rounds) {
     const course = courseMap[round.courseId];
     if (!course) continue;
     const scores = await GolfDB.getScoresForRound(round.id);
-    const totalHoles = course.holes.length;
     const coursePar = course.holes.reduce((s, h) => s + h.par, 0);
 
-    const totals = round.playerIds.map(pid => {
-      const playerScores = scores.filter(s => s.playerId === pid && s.strokes > 0);
-      const holesPlayed = playerScores.length;
-      const total = playerScores.reduce((s, sc) => s + sc.strokes, 0);
-      return { pid, total, holesPlayed, complete: holesPlayed === totalHoles };
-    });
+    const totals = computeRoundTotalsForPlayers(round, course, scores);
 
     totals.forEach(t => {
       if (!stats[t.pid]) return;
@@ -136,7 +131,7 @@ async function loadStandings(players) {
     <table class="score-table">
       <tr><th>Player</th><th>Rounds</th><th>Wins</th><th>Avg ±Par</th></tr>
       ${rows.map((r, i) => `
-        <tr>
+        <tr class="clickable-row" data-player-id="${r.id}">
           <td class="${i === 0 ? 'rank-1' : ''}">${escapeHtml(r.name)}</td>
           <td class="tabular">${r.played}</td>
           <td class="tabular">${r.wins}</td>
@@ -144,6 +139,11 @@ async function loadStandings(players) {
         </tr>`).join('')}
     </table>
   `;
+  el.querySelectorAll('.clickable-row').forEach(row => {
+    row.addEventListener('click', () => {
+      window.location.href = `player-detail.html?id=${row.dataset.playerId}`;
+    });
+  });
 }
 
 document.getElementById('addPlayerBtn').addEventListener('click', async () => {

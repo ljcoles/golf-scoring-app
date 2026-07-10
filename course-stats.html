@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Golf Tracker — Course Stats</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2D4A3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <span class="eyebrow">Golf Tracker</span>
+    <h1 id="pageTitle">Course Stats</h1>
+  </div>
+</div>
+
+<div class="page" id="app">
+  <p class="empty-state">Loading…</p>
+</div>
+
+<script src="db.js"></script>
+<script src="stats.js"></script>
+<script src="nav.js"></script>
+<script>
+const app = document.getElementById('app');
+const pageTitle = document.getElementById('pageTitle');
+const params = new URLSearchParams(window.location.search);
+const courseId = Number(params.get('id'));
+
+let selectedPlayerId = null; // null = all players combined
+
+async function load() {
+  const course = await GolfDB.get('courses', courseId);
+  if (!course) {
+    app.innerHTML = `<div class="card"><p class="empty-state">Course not found.</p></div>
+      <a href="courses.html" class="btn secondary">Back to Courses</a>`;
+    return;
+  }
+  pageTitle.textContent = course.name;
+  const players = await GolfDB.getAll('players');
+  await renderStats(players);
+}
+
+async function renderStats(players) {
+  const data = await computeCourseHoleStats(courseId, selectedPlayerId);
+  const totalPar = data.course.holes.reduce((s, h) => s + h.par, 0);
+
+  app.innerHTML = `
+    <div class="card">
+      <h2>${escapeHtml(data.course.name)}</h2>
+      <p class="subtitle-note" style="margin-bottom:12px;">${data.course.holes.length} holes · par ${totalPar}</p>
+
+      <label for="playerFilter">Show scores for</label>
+      <select id="playerFilter">
+        <option value="">All players combined</option>
+        ${players.map(p => `<option value="${p.id}" ${selectedPlayerId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="card">
+      <h2>Per-hole stats</h2>
+      <table class="score-table">
+        <tr><th>Hole</th><th>Par</th><th>Low</th><th>High</th><th>Avg</th><th>Rounds</th></tr>
+        ${data.rows.map(r => `
+          <tr>
+            <td>${r.number}</td>
+            <td class="tabular">${r.par}</td>
+            <td class="tabular">${r.lowest ?? '–'}</td>
+            <td class="tabular">${r.highest ?? '–'}</td>
+            <td class="tabular">${r.avg == null ? '–' : r.avg.toFixed(1)}</td>
+            <td class="tabular">${r.rounds}</td>
+          </tr>`).join('')}
+      </table>
+    </div>
+
+    <a href="courses.html" class="btn secondary">Back to Courses</a>
+  `;
+
+  document.getElementById('playerFilter').addEventListener('change', (e) => {
+    selectedPlayerId = e.target.value === '' ? null : Number(e.target.value);
+    renderStats(players);
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+renderTabbar('courses.html');
+load();
+</script>
+</body>
+</html>
