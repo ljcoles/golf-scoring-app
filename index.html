@@ -144,17 +144,19 @@ async function loadPastRounds(players, courses) {
     let statusLabel = '';
     if (allComplete) {
       statusLabel = ' · finished';
+    } else if (r.finishedWithGaps) {
+      statusLabel = ' · finished (some 0s)';
     } else if (holesEntered > 0) {
       statusLabel = ' · in progress';
     }
     return `
-      <a href="#" class="list-item resume-round" data-round-id="${r.id}">
-        <div>
+      <div class="list-item round-row" data-round-id="${r.id}">
+        <a href="#" class="resume-round" data-round-id="${r.id}" style="flex:1;min-width:0;text-decoration:none;color:var(--ink);">
           <div class="title">${course ? escapeHtml(course.name) : 'Unknown course'}</div>
           <div class="subtitle">${fmtDate(r.date)} · ${r.playerIds.length} player${r.playerIds.length !== 1 ? 's' : ''}${statusLabel}</div>
-        </div>
-        <span class="chevron">›</span>
-      </a>`;
+        </a>
+        <button class="btn danger" style="width:auto;margin:0;padding:6px 12px;font-size:13px;flex-shrink:0;" data-delete-round="${r.id}">Delete</button>
+      </div>`;
   }));
   container.innerHTML = rows.join('');
 
@@ -165,6 +167,23 @@ async function loadPastRounds(players, courses) {
       const round = await GolfDB.get('rounds', roundId);
       localStorage.setItem(ACTIVE_ROUND_KEY, roundId);
       renderScoring(round);
+    });
+  });
+
+  container.querySelectorAll('[data-delete-round]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const roundId = Number(btn.dataset.deleteRound);
+      const round = rounds.find(r => r.id === roundId);
+      const course = courseMap[round?.courseId];
+      const label = course ? `${course.name} (${fmtDate(round.date)})` : 'this round';
+      if (confirm(`Delete ${label}? This will permanently remove all scores for this round. This cannot be undone.`)) {
+        await GolfDB.deleteRoundCascade(roundId);
+        if (localStorage.getItem(ACTIVE_ROUND_KEY) == String(roundId)) {
+          localStorage.removeItem(ACTIVE_ROUND_KEY);
+        }
+        showToast('Round deleted');
+        loadPastRounds(players, courses);
+      }
     });
   });
 }
@@ -418,7 +437,7 @@ function checkAllScoresThenFinish(course, players, scoreMap) {
   finishBtn.addEventListener('click', () => {
     if (!checkbox.checked) return;
     closeModal();
-    finishRound();
+    finishRound(true);
   });
 }
 
@@ -531,7 +550,14 @@ function scoreClass(strokes, par) {
   return '';
 }
 
-function finishRound() {
+async function finishRound(withGaps = false) {
+  if (withGaps) {
+    const round = await GolfDB.get('rounds', scoringState.round.id);
+    if (round) {
+      round.finishedWithGaps = true;
+      await GolfDB.put('rounds', round);
+    }
+  }
   localStorage.removeItem(ACTIVE_ROUND_KEY);
   showToast('Round complete!');
   init();
