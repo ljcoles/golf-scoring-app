@@ -67,6 +67,7 @@ async function load() {
         <tr><td>Wins</td><td class="tabular">${overall.wins}</td></tr>
         <tr><td>Avg score to par</td><td class="tabular">${fmtToPar(overall.avgToPar)}</td></tr>
         <tr><td>Total penalty strokes</td><td class="tabular">${overall.totalPenalties}</td></tr>
+        <tr><td>Avg putts per hole</td><td class="tabular">${overall.avgPuttsPerHole == null ? '–' : overall.avgPuttsPerHole.toFixed(1)}</td></tr>
         <tr><td>Best round</td><td class="tabular">${overall.best ? `${overall.best.total} (${fmtToPar(overall.best.toPar)})` : '–'}</td></tr>
         <tr><td>Worst round</td><td class="tabular">${overall.worst ? `${overall.worst.total} (${fmtToPar(overall.worst.toPar)})` : '–'}</td></tr>
       </table>
@@ -80,16 +81,54 @@ async function load() {
         <table class="score-table">
           <tr><th>Course</th><th>Rounds</th><th>Avg ±Par</th></tr>
           ${byCourse.map(c => `
-            <tr>
-              <td>${escapeHtml(c.name)}</td>
+            <tr class="clickable-row" data-course-id="${c.id}">
+              <td>${escapeHtml(c.name)} ›</td>
               <td class="tabular">${c.roundsPlayed}</td>
               <td class="tabular">${fmtToPar(c.avgToPar)}</td>
             </tr>`).join('')}
         </table>
+        <p class="subtitle-note" style="margin-top:10px;">Tap a course to see this player's per-hole breakdown.</p>
       `}
     </div>
 
+    <div id="courseHoleBreakdown"></div>
+
     <a href="players.html" class="btn secondary">Back to Players</a>
+  `;
+
+  document.querySelectorAll('#app .clickable-row').forEach(row => {
+    row.addEventListener('click', () => showPlayerCourseBreakdown(Number(row.dataset.courseId)));
+  });
+}
+
+async function showPlayerCourseBreakdown(courseId) {
+  const container = document.getElementById('courseHoleBreakdown');
+  container.innerHTML = `<div class="card"><p class="empty-state">Loading…</p></div>`;
+  container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  const data = await computePlayerCourseHoleStats(playerId, courseId);
+  if (!data) {
+    container.innerHTML = `<div class="card"><p class="empty-state">Could not load hole data.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="card">
+      <h2>${escapeHtml(data.course.name)} — per hole</h2>
+      <table class="score-table">
+        <tr><th>Hole</th><th>Par</th><th>Low</th><th>High</th><th>Avg ±Par</th><th>Avg Pen</th><th>Avg Putts</th></tr>
+        ${data.rows.map(r => `
+          <tr>
+            <td>${r.number}</td>
+            <td class="tabular">${r.par}</td>
+            <td class="tabular">${r.lowest ?? '–'}</td>
+            <td class="tabular">${r.highest ?? '–'}</td>
+            <td class="tabular">${r.avgToPar == null ? '–' : fmtToPar(r.avgToPar)}</td>
+            <td class="tabular">${r.avgPenalties == null ? '–' : r.avgPenalties.toFixed(1)}</td>
+            <td class="tabular">${r.avgPutts == null ? '–' : r.avgPutts.toFixed(1)}</td>
+          </tr>`).join('')}
+      </table>
+    </div>
   `;
 }
 
@@ -100,7 +139,24 @@ function escapeHtml(str) {
 }
 
 renderTabbar('players.html');
-load();
+
+if (!playerId || Number.isNaN(playerId)) {
+  app.innerHTML = `
+    <div class="card">
+      <p class="empty-state">No player specified.</p>
+    </div>
+    <a href="players.html" class="btn secondary">Back to Players</a>`;
+} else {
+  load().catch(err => {
+    app.innerHTML = `
+      <div class="card">
+        <h2>Something went wrong</h2>
+        <p style="font-family:-apple-system,sans-serif;font-size:13px;color:var(--bogey-red);word-break:break-word;">${escapeHtml(err.message || String(err))}</p>
+      </div>
+      <a href="players.html" class="btn secondary">Back to Players</a>`;
+    console.error(err);
+  });
+}
 </script>
 </body>
 </html>

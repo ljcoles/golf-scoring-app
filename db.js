@@ -130,7 +130,7 @@ const GolfDB = (() => {
       await reqToPromise(store.put(match));
       return match.id;
     } else {
-      const id = await reqToPromise(store.add({ roundId, playerId, holeNumber, strokes, penalties: 0 }));
+      const id = await reqToPromise(store.add({ roundId, playerId, holeNumber, strokes, penalties: 0, putts: 0 }));
       return id;
     }
   }
@@ -146,7 +146,23 @@ const GolfDB = (() => {
       await reqToPromise(store.put(match));
       return match.id;
     } else {
-      const id = await reqToPromise(store.add({ roundId, playerId, holeNumber, strokes: 0, penalties }));
+      const id = await reqToPromise(store.add({ roundId, playerId, holeNumber, strokes: 0, penalties, putts: 0 }));
+      return id;
+    }
+  }
+
+  async function setPutts(roundId, playerId, holeNumber, putts) {
+    const t = await tx(['scores'], 'readwrite');
+    const store = t.objectStore('scores');
+    const idx = store.index('roundPlayer');
+    const existing = await reqToPromise(idx.getAll([roundId, playerId]));
+    const match = existing.find(s => s.holeNumber === holeNumber);
+    if (match) {
+      match.putts = putts;
+      await reqToPromise(store.put(match));
+      return match.id;
+    } else {
+      const id = await reqToPromise(store.add({ roundId, playerId, holeNumber, strokes: 0, penalties: 0, putts }));
       return id;
     }
   }
@@ -246,7 +262,7 @@ const GolfDB = (() => {
     createCourse, updateCourse,
     createPlayer,
     createRound,
-    setScore, setPenalty, getScoresForRound, getScoresForPlayer, deleteRoundCascade,
+    setScore, setPenalty, setPutts, getScoresForRound, getScoresForPlayer, deleteRoundCascade,
     exportAll, importAll
   };
 })();

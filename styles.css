@@ -286,65 +286,100 @@ input:focus, select:focus, button:focus-visible, a:focus-visible {
 }
 
 .player-score-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 4px;
+  display: block;
+  padding: 14px 4px;
   border-bottom: 1px solid var(--paper-line);
-  gap: 10px;
-  flex-wrap: wrap;
 }
 
 .player-score-row:last-child { border-bottom: none; }
 
+.player-name-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
 .player-score-row .player-name {
   font-size: 16px;
   font-weight: 600;
-  flex: 1 1 100%;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-bottom: 4px;
 }
 
-.penalty-stepper {
+.hole-total-badge {
+  font-family: -apple-system, sans-serif;
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: 10px;
+}
+
+.hole-total-value {
+  font-weight: 700;
+  color: var(--green-deep);
+  font-size: 15px;
+}
+
+.score-input-line {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-left: auto;
+  justify-content: space-between;
+  padding: 4px 0;
 }
 
-.penalty-label {
+.input-line-label {
   font-family: -apple-system, sans-serif;
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--ink-soft);
 }
 
-.penalty-stepper button {
+.stepper.compact button {
   width: 28px;
   height: 28px;
-  border-radius: 50%;
-  border: 1.5px solid var(--bogey-red);
-  background: transparent;
-  color: var(--bogey-red);
   font-size: 15px;
-  font-family: -apple-system, sans-serif;
-  line-height: 1;
 }
 
-.penalty-stepper button:active { background: var(--bogey-red); color: #fff; }
-
-.penalty-value {
+.stepper.compact .penalty-value,
+.stepper.compact .putt-value {
   width: 20px;
   text-align: center;
   font-size: 15px;
   font-weight: 700;
-  color: var(--bogey-red);
   font-family: -apple-system, sans-serif;
 }
+
+.stepper.compact .penalty-value { color: var(--bogey-red); }
+.stepper.compact .putt-value { color: var(--green-deep); }
+
+.stepper.compact .penalty-dec,
+.stepper.compact .penalty-inc {
+  border-radius: 50%;
+  border: 1.5px solid var(--bogey-red);
+  background: transparent;
+  color: var(--bogey-red);
+  font-family: -apple-system, sans-serif;
+  line-height: 1;
+}
+.stepper.compact .penalty-dec:active,
+.stepper.compact .penalty-inc:active { background: var(--bogey-red); color: #fff; }
+
+.stepper.compact .putt-dec,
+.stepper.compact .putt-inc {
+  border-radius: 50%;
+  border: 1.5px solid var(--green-deep);
+  background: transparent;
+  color: var(--green-deep);
+  font-family: -apple-system, sans-serif;
+  line-height: 1;
+}
+.stepper.compact .putt-dec:active,
+.stepper.compact .putt-inc:active { background: var(--green-deep); color: #fff; }
 
 .stepper {
   display: flex;

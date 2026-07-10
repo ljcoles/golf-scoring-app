@@ -94,7 +94,24 @@ function escapeHtml(str) {
 }
 
 renderTabbar('courses.html');
-load();
+
+if (!courseId || Number.isNaN(courseId)) {
+  app.innerHTML = `
+    <div class="card">
+      <p class="empty-state">No course specified.</p>
+    </div>
+    <a href="courses.html" class="btn secondary">Back to Courses</a>`;
+} else {
+  load().catch(err => {
+    app.innerHTML = `
+      <div class="card">
+        <h2>Something went wrong</h2>
+        <p style="font-family:-apple-system,sans-serif;font-size:13px;color:var(--bogey-red);word-break:break-word;">${escapeHtml(err.message || String(err))}</p>
+      </div>
+      <a href="courses.html" class="btn secondary">Back to Courses</a>`;
+    console.error(err);
+  });
+}
 </script>
 </body>
 </html>

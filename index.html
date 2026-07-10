@@ -121,7 +121,11 @@ async function loadPastRounds(players, courses) {
     container.innerHTML = `<p class="empty-state">No rounds played yet.</p>`;
     return;
   }
-  rounds.sort((a, b) => b.date.localeCompare(a.date));
+  rounds.sort((a, b) => {
+    const dateCompare = b.date.localeCompare(a.date);
+    if (dateCompare !== 0) return dateCompare;
+    return b.id - a.id;
+  });
   const courseMap = Object.fromEntries(courses.map(c => [c.id, c]));
 
   const rows = await Promise.all(rounds.slice(0, 15).map(async r => {
@@ -129,12 +133,25 @@ async function loadPastRounds(players, courses) {
     const scores = await GolfDB.getScoresForRound(r.id);
     const totalHoles = course ? course.holes.length : 18;
     const holesEntered = new Set(scores.filter(s => s.strokes > 0).map(s => s.holeNumber)).size;
-    const inProgress = holesEntered > 0 && holesEntered < totalHoles;
+
+    let allComplete = false;
+    if (course) {
+      allComplete = course.holes.every(h =>
+        r.playerIds.every(pid => scores.some(s => s.holeNumber === h.number && s.playerId === pid && s.strokes > 0))
+      );
+    }
+
+    let statusLabel = '';
+    if (allComplete) {
+      statusLabel = ' · finished';
+    } else if (holesEntered > 0) {
+      statusLabel = ' · in progress';
+    }
     return `
       <a href="#" class="list-item resume-round" data-round-id="${r.id}">
         <div>
           <div class="title">${course ? escapeHtml(course.name) : 'Unknown course'}</div>
-          <div class="subtitle">${fmtDate(r.date)} · ${r.playerIds.length} player${r.playerIds.length !== 1 ? 's' : ''}${inProgress ? ' · in progress' : ''}</div>
+          <div class="subtitle">${fmtDate(r.date)} · ${r.playerIds.length} player${r.playerIds.length !== 1 ? 's' : ''}${statusLabel}</div>
         </div>
         <span class="chevron">›</span>
       </a>`;
@@ -181,9 +198,11 @@ async function renderScoring(round) {
   const players = allPlayers.filter(p => round.playerIds.includes(p.id));
   const scoreMap = new Map();
   const penaltyMap = new Map();
+  const puttMap = new Map();
   scores.forEach(s => {
     scoreMap.set(`${s.holeNumber}_${s.playerId}`, s.strokes);
     penaltyMap.set(`${s.holeNumber}_${s.playerId}`, s.penalties || 0);
+    puttMap.set(`${s.holeNumber}_${s.playerId}`, s.putts || 0);
   });
 
   // find first hole with missing (zero) scores, else hole 1
@@ -193,13 +212,13 @@ async function renderScoring(round) {
     if (!allFilled) { startHole = h.number; break; }
   }
 
-  scoringState = { round, course, players, scoreMap, penaltyMap, currentHole: startHole };
+  scoringState = { round, course, players, scoreMap, penaltyMap, puttMap, currentHole: startHole };
   drawHole();
 }
 
 function drawHole() {
   pageTitle.textContent = 'Scoring';
-  const { course, players, scoreMap, penaltyMap, currentHole } = scoringState;
+  const { course, players, scoreMap, penaltyMap, puttMap, currentHole } = scoringState;
   const holeIdx = course.holes.findIndex(h => h.number === currentHole);
   const hole = course.holes[holeIdx];
   const isFirst = holeIdx === 0;
@@ -235,19 +254,37 @@ function drawHole() {
     const val = scoreMap.get(`${hole.number}_${p.id}`);
     const display = val != null ? val : 0;
     const penaltyVal = penaltyMap.get(`${hole.number}_${p.id}`) || 0;
+    const puttVal = puttMap.get(`${hole.number}_${p.id}`) || 0;
+    const holeTotal = display + penaltyVal + puttVal;
     return `
       <div class="player-score-row" data-player-id="${p.id}">
-        <span class="player-name">${escapeHtml(p.name)}</span>
-        <div class="stepper">
-          <button class="dec">−</button>
-          <button class="value ${scoreClass(display, hole.par)}" type="button">${display}</button>
-          <button class="inc">+</button>
+        <div class="player-name-row">
+          <span class="player-name">${escapeHtml(p.name)}</span>
+          <span class="hole-total-badge">Total: <span class="hole-total-value">${holeTotal}</span></span>
         </div>
-        <div class="penalty-stepper">
-          <span class="penalty-label">Penalty</span>
-          <button class="penalty-dec">−</button>
-          <span class="penalty-value">${penaltyVal}</span>
-          <button class="penalty-inc">+</button>
+        <div class="score-input-line">
+          <span class="input-line-label">Strokes</span>
+          <div class="stepper">
+            <button class="dec">−</button>
+            <button class="value ${scoreClass(display, hole.par)}" type="button">${display}</button>
+            <button class="inc">+</button>
+          </div>
+        </div>
+        <div class="score-input-line">
+          <span class="input-line-label">Penalty</span>
+          <div class="stepper compact">
+            <button class="penalty-dec">−</button>
+            <span class="penalty-value">${penaltyVal}</span>
+            <button class="penalty-inc">+</button>
+          </div>
+        </div>
+        <div class="score-input-line">
+          <span class="input-line-label">Putts</span>
+          <div class="stepper compact">
+            <button class="putt-dec">−</button>
+            <span class="putt-value">${puttVal}</span>
+            <button class="putt-inc">+</button>
+          </div>
         </div>
       </div>`;
   }).join('');
@@ -260,6 +297,17 @@ function drawHole() {
     const penaltyValueEl = row.querySelector('.penalty-value');
     const penaltyDec = row.querySelector('.penalty-dec');
     const penaltyInc = row.querySelector('.penalty-inc');
+    const puttValueEl = row.querySelector('.putt-value');
+    const puttDec = row.querySelector('.putt-dec');
+    const puttInc = row.querySelector('.putt-inc');
+    const totalEl = row.querySelector('.hole-total-value');
+
+    function updateTotalDisplay() {
+      const strokes = Number(valueEl.textContent);
+      const penalties = Number(penaltyValueEl.textContent);
+      const putts = Number(puttValueEl.textContent);
+      totalEl.textContent = strokes + penalties + putts;
+    }
 
     async function setValue(newValue) {
       const current = Math.max(0, newValue);
@@ -267,6 +315,7 @@ function drawHole() {
       valueEl.className = 'value ' + scoreClass(current, hole.par);
       scoreMap.set(`${hole.number}_${playerId}`, current);
       await GolfDB.setScore(scoringState.round.id, playerId, hole.number, current);
+      updateTotalDisplay();
     }
     dec.addEventListener('click', () => setValue(Number(valueEl.textContent) - 1));
     inc.addEventListener('click', () => setValue(Number(valueEl.textContent) + 1));
@@ -277,9 +326,20 @@ function drawHole() {
       penaltyValueEl.textContent = current;
       penaltyMap.set(`${hole.number}_${playerId}`, current);
       await GolfDB.setPenalty(scoringState.round.id, playerId, hole.number, current);
+      updateTotalDisplay();
     }
     penaltyDec.addEventListener('click', () => setPenalty(Number(penaltyValueEl.textContent) - 1));
     penaltyInc.addEventListener('click', () => setPenalty(Number(penaltyValueEl.textContent) + 1));
+
+    async function setPutts(newValue) {
+      const current = Math.max(0, newValue);
+      puttValueEl.textContent = current;
+      puttMap.set(`${hole.number}_${playerId}`, current);
+      await GolfDB.setPutts(scoringState.round.id, playerId, hole.number, current);
+      updateTotalDisplay();
+    }
+    puttDec.addEventListener('click', () => setPutts(Number(puttValueEl.textContent) - 1));
+    puttInc.addEventListener('click', () => setPutts(Number(puttValueEl.textContent) + 1));
 
     // if no score recorded yet, save 0 immediately so it's not lost
     if (scoreMap.get(`${hole.number}_${playerId}`) == null) {
