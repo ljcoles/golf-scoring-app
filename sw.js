@@ -1,4 +1,4 @@
-const CACHE_NAME = 'golf-tracker-v8';
+const CACHE_NAME = 'golf-tracker-v10';
 const ASSETS = [
   './index.html',
   './players.html',
@@ -62,7 +62,25 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(async () => {
+        // exact match first (covers assets with no query string)
+        let cached = await caches.match(event.request);
+        if (cached) return cached;
+
+        // for page navigations with a query string (e.g. round-summary.html?id=4),
+        // match by pathname only against what's actually cached
+        if (event.request.mode === 'navigate') {
+          const url = new URL(event.request.url);
+          cached = await caches.match(url.pathname);
+          if (cached) return cached;
+        }
+
+        // last resort: never return undefined, or Safari throws "Returned response is null"
+        return new Response(
+          '<h1>Offline</h1><p>This page has not been cached yet. Connect to the internet once to enable offline use.</p>',
+          { status: 503, headers: { 'Content-Type': 'text/html' } }
+        );
+      })
   );
 });
 

@@ -17,6 +17,24 @@ function computeRoundTotalsForPlayers(round, course, scores) {
   });
 }
 
+// Per-hole grid for scorecard display: for each hole, each player's strokes
+// (raw stroke count only, for the classic scorecard grid — penalties/putts
+// shown separately in the totals section)
+function computeHoleGrid(round, course, scores) {
+  const scoreMap = new Map(); // "holeNumber_playerId" -> strokes
+  scores.forEach(s => {
+    if (s.strokes > 0) scoreMap.set(`${s.holeNumber}_${s.playerId}`, s.strokes);
+  });
+  return course.holes.map(h => ({
+    number: h.number,
+    par: h.par,
+    scores: round.playerIds.map(pid => ({
+      pid,
+      strokes: scoreMap.get(`${h.number}_${pid}`) || null
+    }))
+  }));
+}
+
 // Detailed round summary per player: strokes/penalties/putts/total/toPar,
 // plus front-9 and back-9 subtotals (front-9 = holes 1-9 by position, not hole number,
 // so 9-hole courses just get one "front" section and no back-9)

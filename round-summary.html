@@ -32,40 +32,21 @@ const pageTitle = document.getElementById('pageTitle');
 const params = new URLSearchParams(window.location.search);
 const roundId = Number(params.get('id'));
 
+let viewState = null;
+
 function fmtToPar(n) {
   if (n == null) return '–';
   return (n > 0 ? '+' : '') + n;
 }
 
-function summaryTable(title, rows, players, coursePar, showPar) {
-  return `
-    <div class="card">
-      <h2>${title}</h2>
-      <table class="score-table">
-        <tr>
-          <th>Player</th>
-          <th>Strokes</th>
-          <th>Pen</th>
-          <th>Putts</th>
-          <th>Total</th>
-          ${showPar ? '<th>±Par</th>' : ''}
-        </tr>
-        ${rows.map(r => {
-          const p = players.find(pl => pl.id === r.pid);
-          return `
-            <tr>
-              <td>${escapeHtml(p ? p.name : '—')}</td>
-              <td class="tabular">${r.strokes}</td>
-              <td class="tabular">${r.penalties}</td>
-              <td class="tabular">${r.putts}</td>
-              <td class="tabular" style="font-weight:700;">${r.total}</td>
-              ${showPar ? `<td class="tabular">${r.holesPlayed > 0 ? fmtToPar(r.toPar) : '–'}</td>` : ''}
-            </tr>`;
-        }).join('')}
-      </table>
-      ${showPar ? `<p class="subtitle-note">Par for this section: ${coursePar}</p>` : ''}
-    </div>
-  `;
+function scoreCellClass(strokes, par) {
+  if (strokes == null) return 'sc-empty';
+  const diff = strokes - par;
+  if (diff <= -1) return 'sc-under';
+  if (diff === 0) return 'sc-par';
+  if (diff === 1) return 'sc-bogey';
+  if (diff === 2) return 'sc-double';
+  return 'sc-triple-plus';
 }
 
 async function load() {
@@ -88,24 +69,134 @@ async function load() {
     return;
   }
 
-  pageTitle.textContent = 'Round Summary';
+  pageTitle.textContent = course.name;
   const players = allPlayers.filter(p => round.playerIds.includes(p.id));
+  const holeGrid = computeHoleGrid(round, course, scores);
   const summary = computeRoundSummary(round, course, scores);
 
-  const frontPar = course.holes.slice(0, 9).reduce((s, h) => s + h.par, 0);
-  const backPar = course.holes.slice(9).reduce((s, h) => s + h.par, 0);
+  viewState = { round, course, players, holeGrid, summary, activeTab: 'front' };
+  render();
+}
+
+function render() {
+  const { players, activeTab } = viewState;
+  const hasBack = viewState.summary.hasBack;
 
   app.innerHTML = `
     <div class="card">
-      <h2>${escapeHtml(course.name)}</h2>
-      <p class="subtitle-note">${fmtDate(round.date)} · ${players.length} player${players.length !== 1 ? 's' : ''} · par ${summary.coursePar}</p>
+      <p class="subtitle-note">${fmtDate(viewState.round.date)} · ${players.length} player${players.length !== 1 ? 's' : ''} · par ${viewState.summary.coursePar}</p>
     </div>
 
-    ${summaryTable('Front 9', summary.rows.map(r => ({ pid: r.pid, ...r.front })), players, frontPar, true)}
-    ${summary.hasBack ? summaryTable('Back 9', summary.rows.map(r => ({ pid: r.pid, ...r.back })), players, backPar, true) : ''}
-    ${summaryTable('Grand Total', summary.rows.map(r => ({ pid: r.pid, ...r.all })), players, summary.coursePar, true)}
+    <div class="tab-switch">
+      <button class="tab-btn ${activeTab === 'front' ? 'active' : ''}" data-tab="front">Front 9</button>
+      ${hasBack ? `<button class="tab-btn ${activeTab === 'back' ? 'active' : ''}" data-tab="back">Back 9</button>` : ''}
+      <button class="tab-btn ${activeTab === 'totals' ? 'active' : ''}" data-tab="totals">Totals</button>
+    </div>
+
+    <div id="tabContent"></div>
 
     <a href="index.html" class="btn secondary">Back to Play</a>
+  `;
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      viewState.activeTab = btn.dataset.tab;
+      render();
+    });
+  });
+
+  drawTabContent();
+}
+
+function drawTabContent() {
+  const { players, holeGrid, summary, activeTab } = viewState;
+  const container = document.getElementById('tabContent');
+
+  if (activeTab === 'totals') {
+    container.innerHTML = totalsTable();
+    return;
+  }
+
+  const holes = activeTab === 'front' ? holeGrid.slice(0, 9) : holeGrid.slice(9);
+  const rowsForTotal = activeTab === 'front'
+    ? summary.rows.map(r => ({ pid: r.pid, ...r.front }))
+    : summary.rows.map(r => ({ pid: r.pid, ...r.back }));
+  const label = activeTab === 'front' ? 'OUT' : 'IN';
+
+  container.innerHTML = `
+    <div class="card scorecard-card">
+      <table class="scorecard-table">
+        <tr>
+          <th>Hole</th>
+          ${players.map(p => `<th>${escapeHtml(p.name)}</th>`).join('')}
+        </tr>
+        ${holes.map(h => `
+          <tr>
+            <td class="hole-cell">${h.number}<span class="hole-par-sub">Par ${h.par}</span></td>
+            ${players.map(p => {
+              const entry = h.scores.find(s => s.pid === p.id);
+              const strokes = entry ? entry.strokes : null;
+              return `<td><span class="score-chip ${scoreCellClass(strokes, h.par)}">${strokes ?? '–'}</span></td>`;
+            }).join('')}
+          </tr>
+        `).join('')}
+        <tr class="total-row">
+          <td>${label}</td>
+          ${players.map(p => {
+            const r = rowsForTotal.find(x => x.pid === p.id);
+            return `<td class="tabular" style="font-weight:700;">${r && r.holesPlayed > 0 ? r.strokes : '–'}</td>`;
+          }).join('')}
+        </tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <table class="score-table">
+        <tr><th>Player</th><th>Pen</th><th>Putts</th><th>Total</th><th>±Par</th></tr>
+        ${rowsForTotal.map(r => {
+          const p = players.find(pl => pl.id === r.pid);
+          return `
+            <tr>
+              <td>${escapeHtml(p ? p.name : '—')}</td>
+              <td class="tabular">${r.penalties}</td>
+              <td class="tabular">${r.putts}</td>
+              <td class="tabular" style="font-weight:700;">${r.holesPlayed > 0 ? r.total : '–'}</td>
+              <td class="tabular">${r.holesPlayed > 0 ? fmtToPar(r.toPar) : '–'}</td>
+            </tr>`;
+        }).join('')}
+      </table>
+    </div>
+  `;
+}
+
+function totalsTable() {
+  const { players, summary } = viewState;
+  const sorted = [...summary.rows].sort((a, b) => {
+    if (a.all.holesPlayed === 0) return 1;
+    if (b.all.holesPlayed === 0) return -1;
+    return a.all.total - b.all.total;
+  });
+
+  return `
+    <div class="card">
+      <h2>Grand Total</h2>
+      <table class="score-table">
+        <tr><th>Player</th><th>Strokes</th><th>Pen</th><th>Putts</th><th>Total</th><th>±Par</th></tr>
+        ${sorted.map((r, i) => {
+          const p = players.find(pl => pl.id === r.pid);
+          return `
+            <tr>
+              <td class="${i === 0 && r.all.holesPlayed > 0 ? 'rank-1' : ''}">${escapeHtml(p ? p.name : '—')}</td>
+              <td class="tabular">${r.all.strokes}</td>
+              <td class="tabular">${r.all.penalties}</td>
+              <td class="tabular">${r.all.putts}</td>
+              <td class="tabular" style="font-weight:700;">${r.all.holesPlayed > 0 ? r.all.total : '–'}</td>
+              <td class="tabular">${r.all.holesPlayed > 0 ? fmtToPar(r.all.toPar) : '–'}</td>
+            </tr>`;
+        }).join('')}
+      </table>
+      <p class="subtitle-note">Course par: ${summary.coursePar}</p>
+    </div>
   `;
 }
 

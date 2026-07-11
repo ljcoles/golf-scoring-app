@@ -150,6 +150,129 @@ body {
   margin: 4px 0 0;
 }
 
+/* ---------- Round summary: tabs + scorecard grid ---------- */
+
+.tab-switch {
+  display: flex;
+  background: #fff;
+  border: 1px solid var(--paper-line);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 14px;
+  gap: 4px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 9px 4px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: -apple-system, sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.tab-btn.active {
+  background: var(--green-deep);
+  color: var(--paper);
+}
+
+.scorecard-card {
+  padding: 12px 8px;
+  overflow-x: auto;
+}
+
+.scorecard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: -apple-system, sans-serif;
+}
+
+.scorecard-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  padding: 6px 4px;
+  text-align: center;
+}
+
+.scorecard-table th:first-child {
+  text-align: left;
+}
+
+.scorecard-table td {
+  padding: 5px 4px;
+  text-align: center;
+  border-bottom: 1px solid var(--paper-line);
+}
+
+.hole-cell {
+  text-align: left !important;
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.hole-par-sub {
+  display: block;
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
+.score-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 14px;
+  font-family: -apple-system, sans-serif;
+}
+
+.sc-empty {
+  background: transparent;
+  color: var(--ink-soft);
+  border: 1.5px dashed var(--paper-line);
+}
+
+.sc-under {
+  background: var(--birdie-green);
+  color: #fff;
+}
+
+.sc-par {
+  background: var(--paper-line);
+  color: var(--ink);
+}
+
+.sc-bogey {
+  background: #E3927A;
+  color: #fff;
+}
+
+.sc-double {
+  background: #C15C42;
+  color: #fff;
+}
+
+.sc-triple-plus {
+  background: #7A2E1F;
+  color: #fff;
+}
+
+.total-row td {
+  border-top: 2px solid var(--ink);
+  border-bottom: none;
+  padding-top: 8px;
+  font-size: 15px;
+}
+
 /* ---------- Forms ---------- */
 
 label {
