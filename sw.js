@@ -1,4 +1,4 @@
-const CACHE_NAME = 'golf-tracker-v10';
+const CACHE_NAME = 'golf-tracker-v11';
 const ASSETS = [
   './index.html',
   './players.html',

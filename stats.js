@@ -17,21 +17,31 @@ function computeRoundTotalsForPlayers(round, course, scores) {
   });
 }
 
-// Per-hole grid for scorecard display: for each hole, each player's strokes
-// (raw stroke count only, for the classic scorecard grid — penalties/putts
-// shown separately in the totals section)
+// Per-hole grid for scorecard display: for each hole, each player's strokes,
+// penalties, and putts
 function computeHoleGrid(round, course, scores) {
-  const scoreMap = new Map(); // "holeNumber_playerId" -> strokes
+  const scoreMap = new Map(); // "holeNumber_playerId" -> {strokes, penalties, putts}
   scores.forEach(s => {
-    if (s.strokes > 0) scoreMap.set(`${s.holeNumber}_${s.playerId}`, s.strokes);
+    if (s.strokes > 0) {
+      scoreMap.set(`${s.holeNumber}_${s.playerId}`, {
+        strokes: s.strokes,
+        penalties: s.penalties || 0,
+        putts: s.putts || 0
+      });
+    }
   });
   return course.holes.map(h => ({
     number: h.number,
     par: h.par,
-    scores: round.playerIds.map(pid => ({
-      pid,
-      strokes: scoreMap.get(`${h.number}_${pid}`) || null
-    }))
+    scores: round.playerIds.map(pid => {
+      const entry = scoreMap.get(`${h.number}_${pid}`);
+      return {
+        pid,
+        strokes: entry ? entry.strokes : null,
+        penalties: entry ? entry.penalties : null,
+        putts: entry ? entry.putts : null
+      };
+    })
   }));
 }
 

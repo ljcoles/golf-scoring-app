@@ -273,6 +273,38 @@ body {
   font-size: 15px;
 }
 
+.score-cell-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.score-sub-badges {
+  display: flex;
+  gap: 3px;
+  min-height: 14px;
+}
+
+.sub-badge {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: -apple-system, sans-serif;
+  padding: 1px 4px;
+  border-radius: 6px;
+  line-height: 1.3;
+}
+
+.sub-badge-pen {
+  background: var(--bogey-red);
+  color: #fff;
+}
+
+.sub-badge-putt {
+  background: var(--green-deep);
+  color: var(--paper);
+}
+
 /* ---------- Forms ---------- */
 
 label {

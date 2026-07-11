@@ -136,7 +136,20 @@ function drawTabContent() {
             ${players.map(p => {
               const entry = h.scores.find(s => s.pid === p.id);
               const strokes = entry ? entry.strokes : null;
-              return `<td><span class="score-chip ${scoreCellClass(strokes, h.par)}">${strokes ?? '–'}</span></td>`;
+              const penalties = entry ? entry.penalties : null;
+              const putts = entry ? entry.putts : null;
+              return `
+                <td>
+                  <div class="score-cell-stack">
+                    <span class="score-chip ${scoreCellClass(strokes, h.par)}">${strokes ?? '–'}</span>
+                    ${strokes != null ? `
+                      <span class="score-sub-badges">
+                        ${penalties > 0 ? `<span class="sub-badge sub-badge-pen">+${penalties}</span>` : ''}
+                        ${putts > 0 ? `<span class="sub-badge sub-badge-putt">${putts}p</span>` : ''}
+                      </span>
+                    ` : ''}
+                  </div>
+                </td>`;
             }).join('')}
           </tr>
         `).join('')}
@@ -148,6 +161,10 @@ function drawTabContent() {
           }).join('')}
         </tr>
       </table>
+      <p class="subtitle-note" style="margin-top:8px;">
+        <span class="sub-badge sub-badge-pen">+1</span> penalty shots ·
+        <span class="sub-badge sub-badge-putt">1p</span> putts
+      </p>
     </div>
 
     <div class="card">
