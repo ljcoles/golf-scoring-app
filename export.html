@@ -21,6 +21,15 @@
 
 <div class="page">
   <div class="card">
+    <h2>Offline readiness</h2>
+    <p style="font-family:-apple-system,sans-serif;font-size:14px;color:var(--ink-soft);">
+      Checks whether every page is stored on this device so the app works with no signal.
+    </p>
+    <div id="cacheStatus"><p class="empty-state">Checking…</p></div>
+    <button class="btn secondary" id="recheckCacheBtn">Re-check now</button>
+  </div>
+
+  <div class="card">
     <h2>Export your data</h2>
     <p style="font-family:-apple-system,sans-serif;font-size:14px;color:var(--ink-soft);">
       All your data lives only on this phone, inside this app. Export regularly and save the file
@@ -121,6 +130,80 @@ document.getElementById('wipeBtn').addEventListener('click', async () => {
 
 renderTabbar('export.html');
 loadSummary();
+checkCacheStatus();
+document.getElementById('recheckCacheBtn').addEventListener('click', checkCacheStatus);
+
+function friendlyName(path) {
+  const map = {
+    './index.html': 'Play (scoring)',
+    './players.html': 'Players',
+    './player-detail.html': 'Player Stats',
+    './courses.html': 'Courses',
+    './course-stats.html': 'Course Stats',
+    './export.html': 'Backup (this page)',
+    './round-summary.html': 'Round Summary',
+    './styles.css': 'App styling',
+    './db.js': 'Data engine',
+    './stats.js': 'Stats engine',
+    './nav.js': 'Navigation',
+    './manifest.json': 'App icon config',
+    './icon-192.png': 'App icon (small)',
+    './icon-512.png': 'App icon (large)'
+  };
+  return map[path] || path;
+}
+
+async function checkCacheStatus() {
+  const el = document.getElementById('cacheStatus');
+
+  if (!('serviceWorker' in navigator)) {
+    el.innerHTML = `<p class="empty-state">Offline mode isn't supported in this browser.</p>`;
+    return;
+  }
+
+  el.innerHTML = `<p class="empty-state">Checking…</p>`;
+
+  const registration = await navigator.serviceWorker.ready.catch(() => null);
+  if (!registration || !registration.active) {
+    el.innerHTML = `<p class="empty-state">No active service worker yet. Reload the page and try again.</p>`;
+    return;
+  }
+
+  const status = await new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const timeout = setTimeout(() => resolve(null), 4000);
+    navigator.serviceWorker.addEventListener('message', function handler(event) {
+      if (event.data && event.data.type === 'CACHE_STATUS') {
+        clearTimeout(timeout);
+        navigator.serviceWorker.removeEventListener('message', handler);
+        resolve(event.data);
+      }
+    });
+    registration.active.postMessage({ type: 'CHECK_CACHE' });
+  });
+
+  if (!status) {
+    el.innerHTML = `<p class="empty-state">Couldn't get a response from the service worker. Try reloading.</p>`;
+    return;
+  }
+
+  const entries = Object.entries(status.results);
+  const missing = entries.filter(([, cached]) => !cached);
+  const allGood = missing.length === 0;
+
+  el.innerHTML = `
+    <p style="font-family:-apple-system,sans-serif;font-size:14px;font-weight:600;color:${allGood ? 'var(--green-deep)' : 'var(--bogey-red)'};margin-bottom:10px;">
+      ${allGood ? `✓ All ${entries.length} pages ready for offline use` : `⚠ ${missing.length} of ${entries.length} pages not yet cached`}
+    </p>
+    <table class="score-table">
+      ${entries.map(([path, cached]) => `
+        <tr>
+          <td>${cached ? '✓' : '✗'} ${friendlyName(path)}</td>
+        </tr>`).join('')}
+    </table>
+    ${allGood ? '' : `<p class="subtitle-note" style="margin-top:10px;">Stay connected to wifi/data for a minute, then tap "Re-check now" — missing pages get cached automatically as they load.</p>`}
+  `;
+}
 </script>
 </body>
 </html>

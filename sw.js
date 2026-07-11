@@ -1,12 +1,12 @@
-const CACHE_NAME = 'golf-tracker-v7';
+const CACHE_NAME = 'golf-tracker-v8';
 const ASSETS = [
-  './',
   './index.html',
   './players.html',
   './player-detail.html',
   './courses.html',
   './course-stats.html',
   './export.html',
+  './round-summary.html',
   './styles.css',
   './db.js',
   './stats.js',
@@ -62,15 +62,20 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() =>
-        caches.match(event.request).then((cached) => {
-          if (cached) return cached;
-          // last resort for navigations: serve the cached app shell so the page still loads
-          if (event.request.mode === 'navigate') {
-            return caches.match('./index.html');
-          }
-          return Response.error();
-        })
-      )
+      .catch(() => caches.match(event.request))
   );
+});
+
+// lets pages ask the service worker which of its expected assets are actually cached
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'CHECK_CACHE') {
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const results = {};
+      for (const url of ASSETS) {
+        const match = await cache.match(url);
+        results[url] = !!match;
+      }
+      event.source.postMessage({ type: 'CACHE_STATUS', cacheName: CACHE_NAME, results });
+    });
+  }
 });

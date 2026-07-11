@@ -17,6 +17,35 @@ function computeRoundTotalsForPlayers(round, course, scores) {
   });
 }
 
+// Detailed round summary per player: strokes/penalties/putts/total/toPar,
+// plus front-9 and back-9 subtotals (front-9 = holes 1-9 by position, not hole number,
+// so 9-hole courses just get one "front" section and no back-9)
+function computeRoundSummary(round, course, scores) {
+  const frontHoles = course.holes.slice(0, 9);
+  const backHoles = course.holes.slice(9);
+
+  function sumFor(pid, holesSubset) {
+    const nums = new Set(holesSubset.map(h => h.number));
+    const playerScores = scores.filter(s => s.playerId === pid && s.strokes > 0 && nums.has(s.holeNumber));
+    const strokes = playerScores.reduce((s, sc) => s + sc.strokes, 0);
+    const penalties = playerScores.reduce((s, sc) => s + (sc.penalties || 0), 0);
+    const putts = playerScores.reduce((s, sc) => s + (sc.putts || 0), 0);
+    const par = holesSubset.reduce((s, h) => s + h.par, 0);
+    const holesPlayed = playerScores.length;
+    const total = strokes + penalties + putts;
+    return { strokes, penalties, putts, total, par, holesPlayed, toPar: total - par };
+  }
+
+  const rows = round.playerIds.map(pid => {
+    const front = sumFor(pid, frontHoles);
+    const back = backHoles.length > 0 ? sumFor(pid, backHoles) : null;
+    const all = sumFor(pid, course.holes);
+    return { pid, front, back, all };
+  });
+
+  return { rows, hasBack: backHoles.length > 0, coursePar: course.holes.reduce((s, h) => s + h.par, 0) };
+}
+
 // Build overall + per-course stats for one player across all rounds/courses
 async function computePlayerStats(playerId) {
   const [rounds, courses, allScoresForPlayer] = await Promise.all([

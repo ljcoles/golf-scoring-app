@@ -155,6 +155,7 @@ async function loadPastRounds(players, courses) {
           <div class="title">${course ? escapeHtml(course.name) : 'Unknown course'}</div>
           <div class="subtitle">${fmtDate(r.date)} · ${r.playerIds.length} player${r.playerIds.length !== 1 ? 's' : ''}${statusLabel}</div>
         </a>
+        <a href="round-summary.html?id=${r.id}" class="pill" style="text-decoration:none;flex-shrink:0;">Summary</a>
         <button class="btn danger" style="width:auto;margin:0;padding:6px 12px;font-size:13px;flex-shrink:0;" data-delete-round="${r.id}">Delete</button>
       </div>`;
   }));
@@ -531,6 +532,7 @@ function openHolePicker() {
       <span><span class="legend-dot legend-complete"></span> Complete</span>
       <span><span class="legend-dot legend-incomplete"></span> Needs a score</span>
     </div>
+    <a href="round-summary.html?id=${scoringState.round.id}" class="btn brass">View round summary ›</a>
     <button class="btn secondary" id="backToScoring">‹ Back to scoring</button>
   `;
 
