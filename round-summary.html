@@ -39,16 +39,6 @@ function fmtToPar(n) {
   return (n > 0 ? '+' : '') + n;
 }
 
-function scoreCellClass(strokes, par) {
-  if (strokes == null) return 'sc-empty';
-  const diff = strokes - par;
-  if (diff <= -1) return 'sc-under';
-  if (diff === 0) return 'sc-par';
-  if (diff === 1) return 'sc-bogey';
-  if (diff === 2) return 'sc-double';
-  return 'sc-triple-plus';
-}
-
 async function load() {
   const round = await GolfDB.get('rounds', roundId);
   if (!round) {
@@ -124,64 +114,52 @@ function drawTabContent() {
   const label = activeTab === 'front' ? 'OUT' : 'IN';
 
   container.innerHTML = `
-    <div class="card scorecard-card">
-      <table class="scorecard-table">
+    <div class="card scorecard-narrow-card">
+      <table class="score-table scorecard-narrow-table">
         <tr>
-          <th>Hole</th>
-          ${players.map(p => `<th>${escapeHtml(p.name)}</th>`).join('')}
+          <th>Hole</th><th>Player</th><th>Strokes</th><th>Pen</th><th>Putts</th><th>Total</th><th>±Par</th>
         </tr>
-        ${holes.map(h => `
-          <tr>
-            <td class="hole-cell">${h.number}<span class="hole-par-sub">Par ${h.par}</span></td>
-            ${players.map(p => {
-              const entry = h.scores.find(s => s.pid === p.id);
-              const strokes = entry ? entry.strokes : null;
-              const penalties = entry ? entry.penalties : null;
-              const putts = entry ? entry.putts : null;
-              return `
-                <td>
-                  <div class="score-cell-stack">
-                    <span class="score-chip ${scoreCellClass(strokes, h.par)}">${strokes ?? '–'}</span>
-                    ${strokes != null ? `
-                      <span class="score-sub-badges">
-                        ${penalties > 0 ? `<span class="sub-badge sub-badge-pen">+${penalties}</span>` : ''}
-                        ${putts > 0 ? `<span class="sub-badge sub-badge-putt">${putts}p</span>` : ''}
-                      </span>
-                    ` : ''}
-                  </div>
-                </td>`;
-            }).join('')}
-          </tr>
-        `).join('')}
-        <tr class="total-row">
-          <td>${label}</td>
-          ${players.map(p => {
-            const r = rowsForTotal.find(x => x.pid === p.id);
-            return `<td class="tabular" style="font-weight:700;">${r && r.holesPlayed > 0 ? r.strokes : '–'}</td>`;
-          }).join('')}
-        </tr>
+        ${holes.map(h => players.map((p, i) => {
+          const entry = h.scores.find(s => s.pid === p.id);
+          const strokes = entry ? entry.strokes : null;
+          const penalties = entry ? entry.penalties : null;
+          const putts = entry ? entry.putts : null;
+          const played = strokes != null;
+          const total = played ? strokes + (penalties || 0) + (putts || 0) : null;
+          const toPar = played ? total - h.par : null;
+          return `
+            <tr class="${i === 0 ? 'hole-group-start' : ''}">
+              <td class="hole-col">${i === 0 ? `${h.number}<span class="hole-par-sub">Par ${h.par}</span>` : ''}</td>
+              <td>${escapeHtml(p.name)}</td>
+              <td class="tabular">${played ? strokes : '–'}</td>
+              <td class="tabular">${played ? penalties : '–'}</td>
+              <td class="tabular">${played ? putts : '–'}</td>
+              <td class="tabular" style="font-weight:700;">${played ? total : '–'}</td>
+              <td class="tabular">${played ? fmtToPar(toPar) : '–'}</td>
+            </tr>`;
+        }).join('')).join('')}
       </table>
-      <p class="subtitle-note" style="margin-top:8px;">
-        <span class="sub-badge sub-badge-pen">+1</span> penalty shots ·
-        <span class="sub-badge sub-badge-putt">1p</span> putts
-      </p>
     </div>
 
     <div class="card">
+      <h2>${label === 'OUT' ? 'Front 9' : 'Back 9'} Totals</h2>
       <table class="score-table">
-        <tr><th>Player</th><th>Pen</th><th>Putts</th><th>Total</th><th>±Par</th></tr>
+        <tr><th>Player</th><th>Strokes</th><th>Pen</th><th>Putts</th><th>Total</th><th>±Par</th></tr>
         ${rowsForTotal.map(r => {
           const p = players.find(pl => pl.id === r.pid);
+          const played = r.holesPlayed > 0;
           return `
             <tr>
               <td>${escapeHtml(p ? p.name : '—')}</td>
+              <td class="tabular">${r.strokes}</td>
               <td class="tabular">${r.penalties}</td>
               <td class="tabular">${r.putts}</td>
-              <td class="tabular" style="font-weight:700;">${r.holesPlayed > 0 ? r.total : '–'}</td>
-              <td class="tabular">${r.holesPlayed > 0 ? fmtToPar(r.toPar) : '–'}</td>
+              <td class="tabular" style="font-weight:700;">${played ? r.total : '–'}</td>
+              <td class="tabular">${played ? fmtToPar(r.toPar) : '–'}</td>
             </tr>`;
         }).join('')}
       </table>
+      <p class="subtitle-note">${label === 'OUT' ? 'Front 9' : 'Back 9'} par: ${holes.reduce((s, h) => s + h.par, 0)}</p>
     </div>
   `;
 }

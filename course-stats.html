@@ -34,6 +34,11 @@ const courseId = Number(params.get('id'));
 
 let selectedPlayerId = null; // null = all players combined
 
+function fmtToPar(n) {
+  if (n == null) return '–';
+  return (n > 0 ? '+' : '') + n.toFixed(1);
+}
+
 async function load() {
   const course = await GolfDB.get('courses', courseId);
   if (!course) {
@@ -49,6 +54,11 @@ async function load() {
 async function renderStats(players) {
   const data = await computeCourseHoleStats(courseId, selectedPlayerId);
   const totalPar = data.course.holes.reduce((s, h) => s + h.par, 0);
+  const agg = aggregateHoleStatsRows(data.rows, 'avg');
+  const playedRows = data.rows.filter(r => r.rounds > 0);
+  const aggToPar = playedRows.length > 0
+    ? playedRows.reduce((s, r) => s + r.avgToPar, 0) / playedRows.length
+    : null;
 
   app.innerHTML = `
     <div class="card">
@@ -64,8 +74,9 @@ async function renderStats(players) {
 
     <div class="card">
       <h2>Per-hole stats</h2>
+      <p class="subtitle-note" style="margin-bottom:10px;">Low/High/Avg use each hole's total (strokes + penalties + putts).</p>
       <table class="score-table">
-        <tr><th>Hole</th><th>Par</th><th>Low</th><th>High</th><th>Avg</th><th>Rounds</th></tr>
+        <tr><th>Hole</th><th>Par</th><th>Low</th><th>High</th><th>Avg</th><th>Avg ±Par</th><th>Avg Pen</th><th>Avg Putts</th><th>Rounds</th></tr>
         ${data.rows.map(r => `
           <tr>
             <td>${r.number}</td>
@@ -73,9 +84,24 @@ async function renderStats(players) {
             <td class="tabular">${r.lowest ?? '–'}</td>
             <td class="tabular">${r.highest ?? '–'}</td>
             <td class="tabular">${r.avg == null ? '–' : r.avg.toFixed(1)}</td>
+            <td class="tabular">${fmtToPar(r.avgToPar)}</td>
+            <td class="tabular">${r.avgPenalties == null ? '–' : r.avgPenalties.toFixed(1)}</td>
+            <td class="tabular">${r.avgPutts == null ? '–' : r.avgPutts.toFixed(1)}</td>
             <td class="tabular">${r.rounds}</td>
           </tr>`).join('')}
+        <tr class="agg-row">
+          <td>Course</td>
+          <td class="tabular">${agg.par}</td>
+          <td class="tabular">${agg.lowest == null ? '–' : agg.lowest.toFixed(1)}</td>
+          <td class="tabular">${agg.highest == null ? '–' : agg.highest.toFixed(1)}</td>
+          <td class="tabular">${agg.avg == null ? '–' : agg.avg.toFixed(1)}</td>
+          <td class="tabular">${fmtToPar(aggToPar)}</td>
+          <td class="tabular">${agg.avgPenalties == null ? '–' : agg.avgPenalties.toFixed(1)}</td>
+          <td class="tabular">${agg.avgPutts == null ? '–' : agg.avgPutts.toFixed(1)}</td>
+          <td class="tabular">${agg.rounds == null ? '–' : agg.rounds.toFixed(1)}</td>
+        </tr>
       </table>
+      <p class="subtitle-note">Bottom row: Low/High/Avg/±Par/Pen/Putts are averages across the holes played; Rounds is the average number of times each hole has been played.</p>
     </div>
 
     <a href="courses.html" class="btn secondary">Back to Courses</a>

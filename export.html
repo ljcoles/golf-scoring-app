@@ -37,6 +37,12 @@
     </p>
     <div id="statsSummary" class="pill" style="margin-bottom:8px;"></div>
     <button class="btn" id="exportBtn">Export backup (.json)</button>
+    <p style="font-family:-apple-system,sans-serif;font-size:13px;color:var(--ink-soft);margin-top:14px;">
+      Prefer spreadsheets? Export the raw tables as CSV files — one file each for players, courses, rounds, and scores.
+      Your browser will download all four at once. On iPhone, Safari may ask permission before each one downloads —
+      just tap Allow each time.
+    </p>
+    <button class="btn secondary" id="exportCsvBtn">Export as CSV (4 files)</button>
   </div>
 
   <div class="card">
@@ -87,6 +93,89 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
   a.remove();
   URL.revokeObjectURL(url);
   showToast('Backup downloaded — tap Share icon to save to Files');
+});
+
+// ---------- CSV export ----------
+
+function csvEscape(value) {
+  if (value == null) return '';
+  const str = String(value);
+  if (/[",\n]/.test(str)) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+function toCsv(columns, rows) {
+  const header = columns.map(csvEscape).join(',');
+  const body = rows.map(row => columns.map(col => csvEscape(row[col])).join(',')).join('\r\n');
+  return header + '\r\n' + body;
+}
+
+function triggerDownload(filename, content) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('exportCsvBtn').addEventListener('click', async () => {
+  const data = await GolfDB.exportAll();
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  // players.csv
+  const playersCsv = toCsv(
+    ['id', 'name'],
+    data.players.map(p => ({ id: p.id, name: p.name }))
+  );
+
+  // courses.csv — one row per hole, since a course has a nested holes array
+  const courseRows = [];
+  data.courses.forEach(c => {
+    (c.holes || []).forEach(h => {
+      courseRows.push({ course_id: c.id, course_name: c.name, hole_number: h.number, par: h.par });
+    });
+  });
+  const coursesCsv = toCsv(['course_id', 'course_name', 'hole_number', 'par'], courseRows);
+
+  // rounds.csv — one row per round, player_ids as a semicolon-separated list
+  const roundsCsv = toCsv(
+    ['id', 'date', 'course_id', 'player_ids'],
+    data.rounds.map(r => ({ id: r.id, date: r.date, course_id: r.courseId, player_ids: (r.playerIds || []).join(';') }))
+  );
+
+  // scores.csv — one row per score entry
+  const scoresCsv = toCsv(
+    ['id', 'round_id', 'player_id', 'hole_number', 'strokes', 'penalties', 'putts'],
+    data.scores.map(s => ({
+      id: s.id,
+      round_id: s.roundId,
+      player_id: s.playerId,
+      hole_number: s.holeNumber,
+      strokes: s.strokes,
+      penalties: s.penalties || 0,
+      putts: s.putts || 0
+    }))
+  );
+
+  function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  triggerDownload(`golf-players-${stamp}.csv`, playersCsv);
+  await delay(400);
+  triggerDownload(`golf-courses-${stamp}.csv`, coursesCsv);
+  await delay(400);
+  triggerDownload(`golf-rounds-${stamp}.csv`, roundsCsv);
+  await delay(400);
+  triggerDownload(`golf-scores-${stamp}.csv`, scoresCsv);
+
+  showToast('4 CSV files downloaded — save them from your downloads/Files app');
 });
 
 document.getElementById('importBtn').addEventListener('click', async () => {

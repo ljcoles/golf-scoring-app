@@ -111,10 +111,12 @@ async function showPlayerCourseBreakdown(courseId) {
     container.innerHTML = `<div class="card"><p class="empty-state">Could not load hole data.</p></div>`;
     return;
   }
+  const agg = aggregateHoleStatsRows(data.rows, 'avgToPar');
 
   container.innerHTML = `
     <div class="card">
       <h2>${escapeHtml(data.course.name)} — per hole</h2>
+      <p class="subtitle-note" style="margin-bottom:10px;">Low/High/Avg ±Par use each hole's total (strokes + penalties + putts).</p>
       <table class="score-table">
         <tr><th>Hole</th><th>Par</th><th>Low</th><th>High</th><th>Avg ±Par</th><th>Avg Pen</th><th>Avg Putts</th></tr>
         ${data.rows.map(r => `
@@ -127,7 +129,17 @@ async function showPlayerCourseBreakdown(courseId) {
             <td class="tabular">${r.avgPenalties == null ? '–' : r.avgPenalties.toFixed(1)}</td>
             <td class="tabular">${r.avgPutts == null ? '–' : r.avgPutts.toFixed(1)}</td>
           </tr>`).join('')}
+        <tr class="agg-row">
+          <td>Course</td>
+          <td class="tabular">${agg.par}</td>
+          <td class="tabular">${agg.lowest == null ? '–' : agg.lowest.toFixed(1)}</td>
+          <td class="tabular">${agg.highest == null ? '–' : agg.highest.toFixed(1)}</td>
+          <td class="tabular">${agg.avg == null ? '–' : fmtToPar(agg.avg)}</td>
+          <td class="tabular">${agg.avgPenalties == null ? '–' : agg.avgPenalties.toFixed(1)}</td>
+          <td class="tabular">${agg.avgPutts == null ? '–' : agg.avgPutts.toFixed(1)}</td>
+        </tr>
       </table>
+      <p class="subtitle-note">Bottom row: averages across the holes this player has played on this course.</p>
     </div>
   `;
 }

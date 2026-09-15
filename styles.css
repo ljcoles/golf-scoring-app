@@ -179,41 +179,25 @@ body {
   color: var(--paper);
 }
 
-.scorecard-card {
-  padding: 12px 8px;
-  overflow-x: auto;
-}
+/* ---------- Round summary: narrow per-hole scorecard table (players stacked) ---------- */
 
-.scorecard-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: -apple-system, sans-serif;
-}
-
-.scorecard-table th {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
+.scorecard-narrow-card {
   padding: 6px 4px;
-  text-align: center;
+  overflow-x: hidden;
 }
 
-.scorecard-table th:first-child {
-  text-align: left;
+.scorecard-narrow-table th,
+.scorecard-narrow-table td {
+  font-size: 13px;
+  padding: 7px 6px;
 }
 
-.scorecard-table td {
-  padding: 5px 4px;
-  text-align: center;
-  border-bottom: 1px solid var(--paper-line);
-}
-
-.hole-cell {
+.hole-col {
   text-align: left !important;
   font-weight: 700;
-  font-size: 14px;
-  white-space: nowrap;
+  vertical-align: middle;
+  border-right: 2px solid var(--paper-line);
+  background: var(--paper);
 }
 
 .hole-par-sub {
@@ -223,86 +207,8 @@ body {
   color: var(--ink-soft);
 }
 
-.score-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  font-weight: 700;
-  font-size: 14px;
-  font-family: -apple-system, sans-serif;
-}
-
-.sc-empty {
-  background: transparent;
-  color: var(--ink-soft);
-  border: 1.5px dashed var(--paper-line);
-}
-
-.sc-under {
-  background: var(--birdie-green);
-  color: #fff;
-}
-
-.sc-par {
-  background: var(--paper-line);
-  color: var(--ink);
-}
-
-.sc-bogey {
-  background: #E3927A;
-  color: #fff;
-}
-
-.sc-double {
-  background: #C15C42;
-  color: #fff;
-}
-
-.sc-triple-plus {
-  background: #7A2E1F;
-  color: #fff;
-}
-
-.total-row td {
-  border-top: 2px solid var(--ink);
-  border-bottom: none;
-  padding-top: 8px;
-  font-size: 15px;
-}
-
-.score-cell-stack {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.score-sub-badges {
-  display: flex;
-  gap: 3px;
-  min-height: 14px;
-}
-
-.sub-badge {
-  font-size: 9px;
-  font-weight: 700;
-  font-family: -apple-system, sans-serif;
-  padding: 1px 4px;
-  border-radius: 6px;
-  line-height: 1.3;
-}
-
-.sub-badge-pen {
-  background: var(--bogey-red);
-  color: #fff;
-}
-
-.sub-badge-putt {
-  background: var(--green-deep);
-  color: var(--paper);
+.hole-group-start td {
+  border-top: 2px solid var(--paper-line);
 }
 
 /* ---------- Forms ---------- */
@@ -814,6 +720,14 @@ table.score-table td:first-child, table.score-table th:first-child {
 }
 
 .rank-1 { color: var(--brass-dark); font-weight: 700; }
+
+.agg-row td {
+  border-top: 2px solid var(--ink);
+  border-bottom: none;
+  padding-top: 8px;
+  font-weight: 700;
+  color: var(--green-deep);
+}
 
 .clickable-row { cursor: pointer; }
 .clickable-row:active { background: var(--paper-line); }

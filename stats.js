@@ -163,7 +163,7 @@ async function computePlayerCourseHoleStats(playerId, courseId) {
   if (!course) return null;
   const rounds = (await GolfDB.getAll('rounds')).filter(r => r.courseId === courseId && r.playerIds.includes(playerId));
 
-  const perHole = {}; // holeNumber -> [{strokes, penalties, putts}, ...]
+  const perHole = {}; // holeNumber -> [{total, penalties, putts}, ...]
   course.holes.forEach(h => perHole[h.number] = []);
 
   for (const round of rounds) {
@@ -172,7 +172,9 @@ async function computePlayerCourseHoleStats(playerId, courseId) {
       .filter(s => s.playerId === playerId && s.strokes > 0)
       .forEach(s => {
         if (perHole[s.holeNumber]) {
-          perHole[s.holeNumber].push({ strokes: s.strokes, penalties: s.penalties || 0, putts: s.putts || 0 });
+          const penalties = s.penalties || 0;
+          const putts = s.putts || 0;
+          perHole[s.holeNumber].push({ total: s.strokes + penalties + putts, penalties, putts });
         }
       });
   }
@@ -182,11 +184,11 @@ async function computePlayerCourseHoleStats(playerId, courseId) {
     if (list.length === 0) {
       return { number: h.number, par: h.par, lowest: null, highest: null, avgToPar: null, avgPenalties: null, avgPutts: null, rounds: 0 };
     }
-    const strokesList = list.map(l => l.strokes);
-    const lowest = Math.min(...strokesList);
-    const highest = Math.max(...strokesList);
-    const avgStrokes = strokesList.reduce((a, b) => a + b, 0) / strokesList.length;
-    const avgToPar = avgStrokes - h.par;
+    const totals = list.map(l => l.total);
+    const lowest = Math.min(...totals);
+    const highest = Math.max(...totals);
+    const avgTotal = totals.reduce((a, b) => a + b, 0) / totals.length;
+    const avgToPar = avgTotal - h.par;
     const avgPenalties = list.reduce((a, l) => a + l.penalties, 0) / list.length;
     const avgPutts = list.reduce((a, l) => a + l.putts, 0) / list.length;
     return { number: h.number, par: h.par, lowest, highest, avgToPar, avgPenalties, avgPutts, rounds: list.length };
@@ -195,13 +197,30 @@ async function computePlayerCourseHoleStats(playerId, courseId) {
   return { course, rows };
 }
 
-// Per-hole stroke stats for a course, optionally filtered to one player
+// Aggregate a set of per-hole stat rows (from computeCourseHoleStats or
+// computePlayerCourseHoleStats) into column totals/averages for a footer row.
+// toParField lets callers pass either 'avg' (raw average) or 'avgToPar' (±par average).
+function aggregateHoleStatsRows(rows, toParField) {
+  const played = rows.filter(r => r.rounds > 0);
+  if (played.length === 0) {
+    return { par: rows.reduce((s, r) => s + r.par, 0), lowest: null, highest: null, avg: null, avgPenalties: null, avgPutts: null, rounds: 0 };
+  }
+  const par = rows.reduce((s, r) => s + r.par, 0);
+  const avgLow = played.reduce((s, r) => s + r.lowest, 0) / played.length;
+  const avgHigh = played.reduce((s, r) => s + r.highest, 0) / played.length;
+  const avg = played.reduce((s, r) => s + r[toParField], 0) / played.length;
+  const avgPenalties = played.reduce((s, r) => s + r.avgPenalties, 0) / played.length;
+  const avgPutts = played.reduce((s, r) => s + r.avgPutts, 0) / played.length;
+  const avgRounds = played.reduce((s, r) => s + r.rounds, 0) / played.length;
+  return { par, lowest: avgLow, highest: avgHigh, avg, avgPenalties, avgPutts, rounds: avgRounds };
+}
+
 async function computeCourseHoleStats(courseId, playerId = null) {
   const course = await GolfDB.get('courses', courseId);
   if (!course) return null;
   const rounds = (await GolfDB.getAll('rounds')).filter(r => r.courseId === courseId);
 
-  const perHole = {}; // holeNumber -> { scores: [strokes,...] }
+  const perHole = {}; // holeNumber -> [{total, penalties, putts}, ...]
   course.holes.forEach(h => perHole[h.number] = []);
 
   for (const round of rounds) {
@@ -209,7 +228,9 @@ async function computeCourseHoleStats(courseId, playerId = null) {
     const filtered = playerId ? scores.filter(s => s.playerId === playerId) : scores;
     filtered.forEach(s => {
       if (s.strokes > 0 && perHole[s.holeNumber]) {
-        perHole[s.holeNumber].push(s.strokes);
+        const penalties = s.penalties || 0;
+        const putts = s.putts || 0;
+        perHole[s.holeNumber].push({ total: s.strokes + penalties + putts, penalties, putts });
       }
     });
   }
@@ -217,12 +238,16 @@ async function computeCourseHoleStats(courseId, playerId = null) {
   const rows = course.holes.map(h => {
     const list = perHole[h.number];
     if (list.length === 0) {
-      return { number: h.number, par: h.par, lowest: null, highest: null, avg: null, rounds: 0 };
+      return { number: h.number, par: h.par, lowest: null, highest: null, avg: null, avgToPar: null, avgPenalties: null, avgPutts: null, rounds: 0 };
     }
-    const lowest = Math.min(...list);
-    const highest = Math.max(...list);
-    const avg = list.reduce((a, b) => a + b, 0) / list.length;
-    return { number: h.number, par: h.par, lowest, highest, avg, rounds: list.length };
+    const totals = list.map(l => l.total);
+    const lowest = Math.min(...totals);
+    const highest = Math.max(...totals);
+    const avg = totals.reduce((a, b) => a + b, 0) / totals.length;
+    const avgToPar = avg - h.par;
+    const avgPenalties = list.reduce((a, l) => a + l.penalties, 0) / list.length;
+    const avgPutts = list.reduce((a, l) => a + l.putts, 0) / list.length;
+    return { number: h.number, par: h.par, lowest, highest, avg, avgToPar, avgPenalties, avgPutts, rounds: list.length };
   });
 
   return { course, rows };
