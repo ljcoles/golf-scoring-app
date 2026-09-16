@@ -128,6 +128,18 @@ body {
   box-shadow: var(--shadow);
 }
 
+/* Any card containing a data table gets horizontal scroll as a safety net —
+   narrow phone screens (e.g. unfolded foldables) can't always fit every
+   column, so this lets you swipe sideways instead of content being cut off. */
+.card:has(table) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.card table {
+  min-width: max-content;
+}
+
 .card h2 {
   margin: 0 0 12px;
   font-size: 16px;
@@ -179,36 +191,42 @@ body {
   color: var(--paper);
 }
 
-/* ---------- Round summary: narrow per-hole scorecard table (players stacked) ---------- */
+/* ---------- Round summary: per-hole scorecard table (players stacked, hole cell spans rows) ---------- */
 
-.scorecard-narrow-card {
-  padding: 6px 4px;
-  overflow-x: hidden;
+.hole-grid-table {
+  width: 100%;
+  min-width: 480px;
 }
 
-.scorecard-narrow-table th,
-.scorecard-narrow-table td {
-  font-size: 13px;
-  padding: 7px 6px;
+.hole-grid-table th,
+.hole-grid-table td {
+  font-size: 12px;
+  padding: 6px 4px;
+  white-space: nowrap;
+}
+
+.hole-grid-table th:first-child,
+.hole-grid-table td:first-child {
+  white-space: normal;
 }
 
 .hole-col {
   text-align: left !important;
   font-weight: 700;
   vertical-align: middle;
-  border-right: 2px solid var(--paper-line);
+  border-right: 2px solid var(--brass);
   background: var(--paper);
 }
 
 .hole-par-sub {
   display: block;
   font-weight: 400;
-  font-size: 10px;
+  font-size: 9px;
   color: var(--ink-soft);
 }
 
 .hole-group-start td {
-  border-top: 2px solid var(--paper-line);
+  border-top: 2px solid var(--brass);
 }
 
 /* ---------- Forms ---------- */
